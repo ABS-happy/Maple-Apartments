@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - My Profile</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Profile Specific Styles */
+        .profile-container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .profile-card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .profile-avatar-large {
+            width: 100px;
+            height: 100px;
+            background-color: var(--primary-light);
+            color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 auto 1.5rem;
+        }
+
+        .profile-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .profile-detail {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            color: #065f46;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #10b981;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: none;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Edit-mode styles for the profile card */
+        .profile-field-view {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .profile-field-edit {
+            display: none;
+            margin-bottom: 0.85rem;
+        }
+        .profile-field-edit label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            margin-bottom: 0.3rem;
+        }
+        .profile-field-edit input {
+            width: 100%;
+            padding: 0.55rem 0.85rem;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.88rem;
+            color: var(--text-main);
+            background: #fafafa;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        .profile-field-edit input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: #fff;
+        }
+        .edit-profile-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 0.45rem 1rem;
+            border-radius: 8px;
+            border: 1.5px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.75rem;
+        }
+        .edit-profile-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #fff7f0; }
+        .save-profile-btn {
+            flex: 1;
+            padding: 0.55rem 0;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary-color);
+            color: white;
+            font-weight: 700;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .save-profile-btn:hover { background: #ea6c0a; }
+        .cancel-profile-btn {
+            flex: 1;
+            padding: 0.55rem 0;
+            border-radius: 8px;
+            border: 1.5px solid var(--border-color);
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 700;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 900px) {
+            .profile-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-leaf"></i> Maple Apts
+        </div>
+        <ul class="nav-links">
+            <li><a href="user-dashboard.html"><i class="fa-solid fa-house-chimney"></i> Dashboard</a></li>
+            <li><a href="#" class="active"><i class="fa-solid fa-user"></i> My Profile</a></li>
+            <li><a href="user-dashboard.html#complaintsSection"><i class="fa-solid fa-triangle-exclamation"></i> Complaints</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="index.html" class="logout-btn" onclick="sessionStorage.clear()"><i
+                    class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-wrapper">
+        <header class="header">
+            <h1 class="page-title">My Profile</h1>
+            <div class="user-profile">
+                <span style="font-weight: 500; color: #4b5563;" id="headerName">Loading...</span>
+                <div class="avatar" id="headerAvatar">U</div>
+            </div>
+        </header>
+
+        <section class="content">
+
+            <div class="alert-success" id="successAlert">
+                <i class="fa-solid fa-circle-check"></i> Profile information updated successfully!
+            </div>
+
+            <div class="profile-container">
+                <!-- Left Side: Profile Overview -->
+                <div class="profile-card">
+                    <div class="profile-avatar-large" id="mainAvatar">U</div>
+                    <h2 class="profile-name" id="profileName">Owner Name</h2>
+
+                    <!-- VIEW MODE -->
+                    <div id="profileViewMode">
+                        <p class="profile-field-view"><i class="fa-solid fa-house" style="width:14px"></i> Flat: <strong id="profileFlat">---</strong></p>
+                        <p class="profile-field-view"><i class="fa-solid fa-envelope" style="width:14px"></i> <span id="profileEmail">email@example.com</span></p>
+                        <p class="profile-field-view"><i class="fa-solid fa-phone" style="width:14px"></i> <span id="profilePhone">+1 234 567 890</span></p>
+                        <button class="edit-profile-btn" onclick="toggleProfileEdit(true)">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit Info
+                        </button>
+                    </div>
+
+                    <!-- EDIT MODE (hidden by default) -->
+                    <div id="profileEditMode" style="display:none; text-align:left;">
+                        <div class="profile-field-edit">
+                            <label for="editName">Full Name</label>
+                            <input type="text" id="editName" placeholder="Your full name">
+                        </div>
+                        <div class="profile-field-edit">
+                            <label for="editFlat">Flat Number</label>
+                            <input type="text" id="editFlat" placeholder="e.g. 101">
+                        </div>
+                        <div class="profile-field-edit">
+                            <label for="editEmail">Email Address</label>
+                            <input type="email" id="editEmail" placeholder="your@email.com">
+                        </div>
+                        <div class="profile-field-edit">
+                            <label for="editPhone">Phone Number</label>
+                            <input type="tel" id="editPhone" placeholder="+91 98765 43210">
+                        </div>
+                        <div id="editProfileError" style="display:none;color:#dc2626;font-size:0.8rem;margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:#fef2f2;border-radius:6px;"></div>
+                        <div style="display:flex;gap:0.6rem;margin-top:0.5rem;">
+                            <button class="cancel-profile-btn" onclick="toggleProfileEdit(false)">Cancel</button>
+                            <button class="save-profile-btn" id="saveProfileBtn" onclick="updateBasicProfile()">Save</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                        <span class="badge badge-paid">Active Resident</span>
+                    </div>
+                </div>
+
+                <!-- Right Side: Edit Flat Details -->
+                <div class="panel" style="margin-bottom: 0;">
+                    <div class="panel-header">
+                        <h2 class="panel-title">Apartment Living Details</h2>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <form id="profileForm" onsubmit="return false;">
+                            <div class="form-group">
+                                <label for="numResidents">Number of People Living in Flat</label>
+                                <input type="number" id="numResidents" class="form-control" min="1" max="15"
+                                    placeholder="e.g. 4">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="purchaseYear">Year House Was Bought</label>
+                                <input type="number" id="purchaseYear" class="form-control" min="1950" max="2030"
+                                    placeholder="e.g. 2021">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rentalStatus">Current Flat Status</label>
+                                <select id="rentalStatus" class="form-control">
+                                    <option value="Self Occupied">Self Occupied (Owner living here)</option>
+                                    <option value="Rented">On Rent (Tenants living here)</option>
+                                    <option value="Vacant">Vacant</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="petsDetails">Pets (If any)</label>
+                                <input type="text" id="petsDetails" class="form-control" placeholder="e.g. 1 Dog">
+                            </div>
+
+                            <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+                                <button type="button" class="btn-primary" style="padding: 0.75rem 1.5rem;" id="saveBtn" onclick="saveProfile()">
+                                    <i class="fa-solid fa-floppy-disk" style="margin-right: 0.5rem;"></i> Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        let _currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const userStr = sessionStorage.getItem('maple_user');
+            if (!userStr) { window.location.href = 'index.html'; return; }
+
+            _currentUser = JSON.parse(userStr);
+            const user = _currentUser;
+
+            // Populate Header
+            document.getElementById('headerName').textContent = `Flat ${user.flat_number} (${user.owner_name})`;
+            document.getElementById('headerAvatar').textContent = user.owner_name.charAt(0).toUpperCase();
+
+            // Populate Left Card
+            document.getElementById('mainAvatar').textContent = user.owner_name.charAt(0).toUpperCase();
+            document.getElementById('profileName').textContent = user.owner_name;
+            document.getElementById('profileFlat').textContent = user.flat_number;
+            document.getElementById('profileEmail').textContent = user.email || 'No email provided';
+            document.getElementById('profilePhone').textContent = user.mobile_number || 'N/A';
+
+            // Load saved profile details (localStorage first, then try backend)
+            loadProfileDetails(user.flat_number);
+        });
+
+        function loadProfileDetails(flatNumber) {
+            // Try localStorage first (instant)
+            const key = `maple_profile_${flatNumber}`;
+            const savedStr = localStorage.getItem(key);
+            if (savedStr) {
+                applyProfileDetails(JSON.parse(savedStr));
+            }
+
+            // Also fetch from backend to stay in sync
+            fetch(`/api/residents/${flatNumber}/profile`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (data && data.profile) {
+                        applyProfileDetails(data.profile);
+                        localStorage.setItem(key, JSON.stringify(data.profile));
+                    }
+                })
+                .catch(() => { /* offline — localStorage data already shown */ });
+        }
+
+        function applyProfileDetails(details) {
+            if (!details) return;
+            document.getElementById('numResidents').value = details.residents || '';
+            document.getElementById('purchaseYear').value = details.year || '';
+            document.getElementById('rentalStatus').value = details.status || 'Self Occupied';
+            document.getElementById('petsDetails').value = details.pets || '';
+            const phoneEl = document.getElementById('residentPhone');
+            if (phoneEl) phoneEl.value = details.phone || '';
+        }
+
+        function saveProfile() {
+            const user = _currentUser;
+            if (!user) return;
+
+            const saveBtn = document.getElementById('saveBtn');
+            const originalHtml = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.5rem;"></i> Saving...';
+            saveBtn.disabled = true;
+
+            const profileData = {
+                residents: document.getElementById('numResidents').value,
+                year: document.getElementById('purchaseYear').value,
+                status: document.getElementById('rentalStatus').value,
+                pets: document.getElementById('petsDetails').value,
+                phone: document.getElementById('residentPhone')?.value || ''
+            };
+
+            // Save to localStorage immediately — this is the source of truth
+            const key = `maple_profile_${user.flat_number}`;
+            localStorage.setItem(key, JSON.stringify(profileData));
+
+            // Show success immediately — don't wait for backend
+            function showSuccess(msg) {
+                saveBtn.innerHTML = originalHtml;
+                saveBtn.disabled = false;
+                const alertBox = document.getElementById('successAlert');
+                alertBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + msg;
+                alertBox.style.display = 'flex';
+                setTimeout(() => { alertBox.style.display = 'none'; }, 5000);
+            }
+
+            // Show success right away (data is in localStorage)
+            showSuccess('Profile setup successful! Your information has been saved.');
+
+            // Also try syncing to backend in background (silent)
+            const token = sessionStorage.getItem('maple_token');
+            fetch(`/api/residents/${user.flat_number}/profile`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ profile: profileData })
+            }).catch(() => { /* backend unavailable — localStorage already saved */ });
+        }
+
+        // ===== BASIC INFO EDIT (Name, Flat, Email, Phone) =====
+        function toggleProfileEdit(show) {
+            document.getElementById('profileViewMode').style.display = show ? 'none' : '';
+            document.getElementById('profileEditMode').style.display = show ? 'block' : 'none';
+            document.getElementById('editProfileError').style.display = 'none';
+
+            if (show && _currentUser) {
+                // Pre-fill with current values
+                document.getElementById('editName').value  = _currentUser.owner_name  || '';
+                document.getElementById('editFlat').value  = _currentUser.flat_number  || '';
+                document.getElementById('editEmail').value = _currentUser.email         || '';
+                document.getElementById('editPhone').value = _currentUser.mobile_number || '';
+                // Show the input fields
+                document.querySelectorAll('.profile-field-edit').forEach(el => el.style.display = 'block');
+                document.getElementById('editName').focus();
+            }
+        }
+
+        async function updateBasicProfile() {
+            const name  = document.getElementById('editName').value.trim();
+            const flat  = document.getElementById('editFlat').value.trim();
+            const email = document.getElementById('editEmail').value.trim();
+            const phone = document.getElementById('editPhone').value.trim();
+            const errDiv = document.getElementById('editProfileError');
+            const saveBtn = document.getElementById('saveProfileBtn');
+
+            errDiv.style.display = 'none';
+            if (!name)  { errDiv.textContent = 'Name cannot be empty.';         errDiv.style.display='block'; return; }
+            if (!flat)  { errDiv.textContent = 'Flat number cannot be empty.';  errDiv.style.display='block'; return; }
+            if (!email) { errDiv.textContent = 'Email cannot be empty.';        errDiv.style.display='block'; return; }
+
+            const ogTxt = saveBtn.textContent;
+            saveBtn.textContent = 'Saving...';
+            saveBtn.disabled = true;
+
+            // Update in memory
+            _currentUser.owner_name    = name;
+            _currentUser.flat_number   = flat;
+            _currentUser.email         = email;
+            _currentUser.mobile_number = phone;
+
+            // Persist to sessionStorage so rest of session sees it
+            sessionStorage.setItem('maple_user', JSON.stringify(_currentUser));
+
+            // Update all view displays instantly
+            document.getElementById('profileName').textContent  = name;
+            document.getElementById('profileFlat').textContent  = flat;
+            document.getElementById('profileEmail').textContent = email || 'No email provided';
+            document.getElementById('profilePhone').textContent = phone || 'N/A';
+            document.getElementById('headerName').textContent   = `Flat ${flat} (${name})`;
+            document.getElementById('mainAvatar').textContent   = name.charAt(0).toUpperCase();
+            document.getElementById('headerAvatar').textContent = name.charAt(0).toUpperCase();
+
+            // Switch back to view mode immediately
+            toggleProfileEdit(false);
+            saveBtn.textContent = ogTxt;
+            saveBtn.disabled = false;
+
+            // Show success banner
+            const alertBox = document.getElementById('successAlert');
+            alertBox.innerHTML = '<i class="fa-solid fa-circle-check"></i> Profile info updated successfully!';
+            alertBox.style.display = 'flex';
+            setTimeout(() => { alertBox.style.display = 'none'; }, 5000);
+
+            // Sync to backend in background
+            const token = sessionStorage.getItem('maple_token');
+            fetch('/api/user/update-profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ owner_name: name, flat_number: flat, email, mobile_number: phone })
+            }).catch(() => { /* silent — UI already updated */ });
+        }
+    </script>
+</body>
+
+</html>

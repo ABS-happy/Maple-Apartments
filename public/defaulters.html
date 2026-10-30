@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Defaulter Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .side-panel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateX(100%); }
+        .side-panel-active { transform: translateX(0); }
+        .risk-critical { background-color: #ef4444; color: white; }
+        .risk-high { background-color: #f97316; color: white; }
+        .risk-medium { background-color: #fbbf24; color: white; }
+        .risk-low { background-color: #94a3b8; color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="fixed inset-y-0 left-0 w-64 bg-white border-r hidden lg:block">
+            <div class="p-8"><div class="text-orange-600 font-black text-xl mb-12 flex items-center gap-3"><i class="fa-solid fa-crown text-2xl"></i> Maple Admin</div>
+                <nav class="space-y-1">
+                    <a href="admin-dashboard.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all"><i class="fa-solid fa-chart-pie w-6 text-center"></i> Overview</a>
+                    <a href="admin-dashboard.html#complaintsBox" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all"><i class="fa-solid fa-triangle-exclamation w-6 text-center"></i> Complaints Box</a>
+                    <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all"><i class="fa-solid fa-gear w-6 text-center"></i> Settings</a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-64 p-4 lg:p-10 relative overflow-hidden">
+            <div class="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                <div>
+                    <h1 class="text-3xl font-black tracking-tighter italic">Defaulter Command Center</h1>
+                    <p class="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">Risk Assessment & Recovery</p>
+                </div>
+                <button onclick="sendBulkNotices()" class="bg-red-600 text-white px-8 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-red-100 hover:bg-red-700 transition-all">Dispatch Bulk Notices</button>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                <div class="bg-white p-8 rounded-[38px] border border-gray-100 shadow-sm">
+                    <p class="text-[10px] uppercase font-black text-gray-400 mb-2">Total Defaulters</p>
+                    <h3 id="statCount" class="text-3xl font-black italic">0</h3>
+                </div>
+                <div class="bg-red-600 p-8 rounded-[38px] text-white shadow-xl">
+                    <p class="text-[10px] uppercase font-black text-white/70 mb-2">Outstanding Money</p>
+                    <h3 id="statAmount" class="text-3xl font-black italic">₹0</h3>
+                </div>
+                <div class="bg-white p-8 rounded-[38px] border border-gray-100 shadow-sm">
+                    <p class="text-[10px] uppercase font-black text-gray-400 mb-2">Worst Streak</p>
+                    <h3 id="statStreak" class="text-3xl font-black italic text-red-600">0 Mo</h3>
+                </div>
+                <div class="bg-white p-8 rounded-[38px] border border-gray-100 shadow-sm">
+                    <p class="text-[10px] uppercase font-black text-gray-400 mb-2">Avg. Default</p>
+                    <h3 id="statAvg" class="text-3xl font-black italic">₹0</h3>
+                </div>
+            </div>
+
+            <!-- Defaulters Table -->
+            <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden min-h-[500px]">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50/50 text-gray-400 text-[10px] uppercase tracking-widest font-black">
+                        <tr>
+                            <th class="px-8 py-6">Rank</th>
+                            <th class="px-8 py-6">Room</th>
+                            <th class="px-8 py-6">Resident</th>
+                            <th class="px-8 py-6">Streak</th>
+                            <th class="px-8 py-6">Total Owed</th>
+                            <th class="px-8 py-6">Risk Badge</th>
+                            <th class="px-8 py-6 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="defaulterTableBody" class="font-bold text-sm divide-y divide-gray-50"></tbody>
+                </table>
+            </div>
+
+            <!-- Detail Side Panel -->
+            <div id="sidePanel" class="side-panel fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-[200] border-l p-10 flex flex-col">
+                <div class="flex justify-between items-center mb-10">
+                    <h2 class="text-2xl font-black italic">Defaulter Intel</h2>
+                    <button onclick="closePanel()" class="text-gray-300 hover:text-red-600 transition-all text-xl"><i class="fa-solid fa-circle-xmark"></i></button>
+                </div>
+
+                <div id="panelContent" class="flex-1 space-y-10">
+                    <!-- Resident Details -->
+                    <div class="bg-gray-50 p-8 rounded-[32px]">
+                        <div id="panelHeader" class="mb-6">
+                            <h3 id="panelName" class="text-xl font-black text-gray-900 leading-none">Resident Name</h3>
+                            <p id="panelUnit" class="text-[10px] font-black uppercase text-orange-600 tracking-widest mt-2">Room 101</p>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex justify-between text-xs font-bold"><span class="text-gray-400">Phone:</span> <span id="panelPhone">—</span></div>
+                            <div class="flex justify-between text-xs font-bold"><span class="text-gray-400">Total Outstanding:</span> <span id="panelOwed" class="text-red-600">₹0</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div>
+                        <h4 class="text-[10px] font-black uppercase text-gray-400 mb-6 tracking-widest">Unpaid Months Timeline</h4>
+                        <div id="panelTimeline" class="space-y-4">
+                            <!-- Timeline items -->
+                        </div>
+                    </div>
+                </div>
+
+                <button id="panelNoticeBtn" class="w-full py-5 bg-orange-600 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-orange-100 mt-10 hover:bg-orange-700 transition-all">Send Formal Notice</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const token = sessionStorage.getItem('maple_token');
+
+        async function fetchDefaulters() {
+            const res = await fetch('/api/defaulters', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            renderTable(data);
+            updateStats(data);
+        }
+
+        function renderTable(data) {
+            const body = document.getElementById('defaulterTableBody');
+            body.innerHTML = '';
+            data.forEach((item, index) => {
+                const badge = getRiskBadge(item.riskScore);
+                const crown = index === 0 ? '<i class="fa-solid fa-crown text-red-600"></i>' : '';
+                body.innerHTML += `
+                    <tr>
+                        <td class="px-8 py-6 text-gray-400">#${index+1} ${crown}</td>
+                        <td class="px-8 py-6 text-gray-900">${item.roomNumber}</td>
+                        <td class="px-8 py-6 text-gray-400 uppercase text-[10px] tracking-tighter">${item.residentName}</td>
+                        <td class="px-8 py-6 text-red-600 italic">${item.consecutiveMonthsUnpaid} Mos</td>
+                        <td class="px-8 py-6 text-gray-900">₹${item.totalUnpaidAmount}</td>
+                        <td class="px-8 py-6"><span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase ${badge.class}">${badge.label}</span></td>
+                        <td class="px-8 py-6 text-right">
+                            <button onclick="openPanel('${item.roomId}')" class="bg-gray-100 p-2 rounded-xl text-gray-400 hover:bg-orange-600 hover:text-white transition-all"><i class="fa-solid fa-eye text-xs"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function getRiskBadge(score) {
+            if(score > 200) return { label: 'Critical', class: 'risk-critical' };
+            if(score > 100) return { label: 'High', class: 'risk-high' };
+            if(score > 50) return { label: 'Medium', class: 'risk-medium' };
+            return { label: 'Low', class: 'risk-low' };
+        }
+
+        function updateStats(data) {
+            const total = data.reduce((acc, curr) => acc + curr.totalUnpaidAmount, 0);
+            document.getElementById('statCount').textContent = data.length;
+            document.getElementById('statAmount').textContent = `₹${total}`;
+            document.getElementById('statStreak').textContent = `${Math.max(...data.map(d => d.consecutiveMonthsUnpaid))} Mo`;
+            document.getElementById('statAvg').textContent = `₹${Math.round(total / (data.length || 1))}`;
+        }
+
+        async function openPanel(roomId) {
+            const res = await fetch(`/api/defaulters/${roomId}/history`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            
+            document.getElementById('panelName').textContent = data.residentName;
+            document.getElementById('panelUnit').textContent = `Room ${data.roomNumber}`;
+            document.getElementById('panelPhone').textContent = data.phone;
+            document.getElementById('panelOwed').textContent = `₹${data.totalOutstanding}`;
+            
+            const timeline = document.getElementById('panelTimeline');
+            timeline.innerHTML = '';
+            data.history.forEach(bill => {
+                timeline.innerHTML += `
+                    <div class="flex items-center gap-4 border-l-2 border-red-600 pl-6 pb-6 relative">
+                        <div class="absolute -left-[7px] top-0 w-3 h-3 bg-red-600 rounded-full"></div>
+                        <div class="flex-1">
+                            <p class="text-sm font-black text-gray-900 leading-none">${bill.billMonth}</p>
+                            <p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">${bill.daysOverdue} Days Past Due</p>
+                        </div>
+                        <div class="text-sm font-black text-red-600">₹${bill.amount}</div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('sidePanel').classList.add('side-panel-active');
+        }
+
+        function closePanel() { document.getElementById('sidePanel').classList.remove('side-panel-active'); }
+        window.onload = fetchDefaulters;
+    </script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Admin Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="fixed inset-y-0 left-0 w-64 bg-white border-r hidden lg:block">
+            <div class="p-8">
+                <div class="flex items-center gap-3 text-orange-600 font-bold text-xl mb-12">
+                    <i class="fa-solid fa-crown text-2xl"></i> Maple Admin
+                </div>
+                <nav class="space-y-1">
+                    <a href="admin-dashboard.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-chart-pie w-6 text-center"></i> Overview
+                    </a>
+                    <a href="admin-dashboard.html#complaintsBox" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-triangle-exclamation w-6 text-center"></i> Complaints Box
+                    </a>
+                    <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-50 text-orange-600 font-bold transition-all">
+                        <i class="fa-solid fa-gear w-6 text-center"></i> Settings
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-64 p-4 lg:p-14">
+            <h1 class="text-4xl font-black tracking-tighter mb-12 italic">System Architecture</h1>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                
+                <!-- Building Info -->
+                <div class="bg-white rounded-[40px] p-10 shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-black mb-10 flex items-center gap-4"><i class="fa-solid fa-building text-orange-600"></i> Building Profile</h2>
+                    <div class="space-y-6">
+                        <div class="space-y-1">
+                            <label class="text-[10px] uppercase font-black text-gray-400">Society / Building Name</label>
+                            <input type="text" id="set-name" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 font-bold outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] uppercase font-black text-gray-400">Full Address</label>
+                            <textarea id="set-address" rows="3" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 font-medium outline-none focus:ring-2 focus:ring-orange-500"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Billing Logic -->
+                <div class="bg-white rounded-[40px] p-10 shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-black mb-10 flex items-center gap-4"><i class="fa-solid fa-coins text-orange-600"></i> Local Billing Logic</h2>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="space-y-1">
+                            <label class="text-[10px] uppercase font-black text-gray-400">Default Maintenance (₹)</label>
+                            <input type="number" id="set-maint" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 font-bold outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] uppercase font-black text-gray-400">Late Fee (% Monthly)</label>
+                            <input type="number" id="set-late" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 font-bold outline-none focus:ring-2 focus:ring-orange-500">
+                        </div>
+                        <div class="col-span-2 space-y-1">
+                            <label class="text-[10px] uppercase font-black text-gray-400">Payment Reminder Template</label>
+                            <textarea id="set-template" rows="4" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 font-medium outline-none focus:ring-2 focus:ring-orange-500 italic text-sm text-gray-500"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-10 flex justify-end">
+                <button onclick="saveSettings()" class="bg-orange-600 text-white px-12 py-5 rounded-[28px] font-black uppercase tracking-widest text-xs shadow-2xl shadow-orange-100 hover:bg-orange-700 hover:-translate-y-1 transition-all active:scale-95">
+                    Save Synchronization
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile Bottom Tab Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex justify-around lg:hidden z-[200] shadow-2xl">
+        <a href="admin-dashboard.html" class="p-3 text-orange-600 transition-all"><i class="fa-solid fa-chart-pie text-xl"></i></a>
+        <a href="residents.html" class="p-3 text-gray-300 transition-all"><i class="fa-solid fa-users text-xl"></i></a>
+        <a href="billing.html" class="p-3 text-gray-300 transition-all relative">
+            <i class="fa-solid fa-file-invoice-dollar text-xl"></i>
+            <span class="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border border-white"></span>
+        </a>
+        <a href="admin-dashboard.html#complaintsBox" class="p-3 text-gray-300 transition-all"><i class="fa-solid fa-triangle-exclamation text-xl"></i></a>
+        <a href="settings.html" class="p-3 text-gray-300 transition-all"><i class="fa-solid fa-gear text-xl"></i></a>
+    </nav>
+
+    <script>
+        // Load settings from localStorage
+        function loadSettings() {
+            const defaults = {
+                name: 'Maple Apartments',
+                address: '12-A, Maple Crossroad, Bangalore - 560001',
+                maint: 2500,
+                late: 5,
+                template: 'Dear Resident, your maintenance bill for [MONTH] of ₹[TOTAL] is due. Please pay via UPI or Cash to avoid late fees. — Management'
+            };
+            
+            const saved = JSON.parse(localStorage.getItem('maple_settings')) || defaults;
+            
+            document.getElementById('set-name').value = saved.name;
+            document.getElementById('set-address').value = saved.address;
+            document.getElementById('set-maint').value = saved.maint;
+            document.getElementById('set-late').value = saved.late;
+            document.getElementById('set-template').value = saved.template;
+        }
+
+        function saveSettings() {
+            const settings = {
+                name: document.getElementById('set-name').value,
+                address: document.getElementById('set-address').value,
+                maint: document.getElementById('set-maint').value,
+                late: document.getElementById('set-late').value,
+                template: document.getElementById('set-template').value
+            };
+            localStorage.setItem('maple_settings', JSON.stringify(settings));
+            alert('Settings Synchronized Successfully!');
+        }
+
+        window.onload = loadSettings;
+    </script>
+</body>
+</html>

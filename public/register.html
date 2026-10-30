@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Register</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="top-corner-logo">
+        <i class="fa-solid fa-leaf logo-icon"></i>
+        <span>Maple Apartments</span>
+    </div>
+    <div class="login-container" style="padding-top: 2rem; padding-bottom: 2rem;">
+        <div class="login-card" style="max-width: 500px;">
+            <div class="header-text">
+                <h1>Register New Owner</h1>
+                <p>Create your apartment portal account</p>
+            </div>
+            
+            <div class="error-message hidden" id="register-error-message">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span id="register-error-text">Registration error</span>
+            </div>
+
+            <form id="register-form">
+                <div class="input-group">
+                    <label for="reg-username">User ID <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-user input-icon"></i>
+                        <input type="text" id="reg-username" placeholder="Choose a User ID" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-ownername">Owner Name <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-address-card input-icon"></i>
+                        <input type="text" id="reg-ownername" placeholder="Enter Full Name" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-flatnumber">Flat Number <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-door-open input-icon"></i>
+                        <input type="text" id="reg-flatnumber" placeholder="e.g. 101" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-mobilenumber">Mobile Number <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-phone input-icon"></i>
+                        <input type="tel" id="reg-mobilenumber" placeholder="10-digit Mobile Number" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-email">Email Address</label>
+                    <div class="input-wrapper">
+                        <i class="fa-regular fa-envelope input-icon"></i>
+                        <input type="email" id="reg-email" placeholder="Enter Email Address (Optional)">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="reg-password">Password <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input type="password" id="reg-password" placeholder="Create a password" required>
+                        <button type="button" class="toggle-password" id="toggleRegPassword" aria-label="Toggle password visibility">
+                            <i class="fa-regular fa-eye" id="toggleRegIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="registerBtn">
+                    <span>Register</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <div class="card-footer" style="margin-top: 1.5rem;">
+                <p>Already have an account? <a href="index.html" class="register-link">Login here</a></p>
+            </div>
+        </div>
+        
+        <footer class="page-footer" style="margin-top: 1.5rem;">
+            <p>&copy; 2026 Maple Apartments. All Rights Reserved.</p>
+        </footer>
+    </div>
+
+    <script src="register.js"></script>
+</body>
+</html>

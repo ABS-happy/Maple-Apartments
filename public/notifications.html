@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Notifications Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-active { color: #ea580c; border-bottom: 3px solid #ea580c; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="fixed inset-y-0 left-0 w-64 bg-white border-r hidden lg:block">
+            <div class="p-8">
+                <div class="flex items-center gap-3 text-orange-600 font-bold text-xl mb-12">
+                    <i class="fa-solid fa-crown text-2xl"></i> Maple Admin
+                </div>
+                <nav class="space-y-1">
+                    <a href="admin-dashboard.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-chart-pie w-6 text-center"></i> Overview
+                    </a>
+                    <a href="admin-dashboard.html#complaintsBox" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-triangle-exclamation w-6 text-center"></i> Complaints Box
+                    </a>
+                    <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-gear w-6 text-center"></i> Settings
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-64 p-4 lg:p-10">
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                
+                <!-- LEFT: SEND PANEL -->
+                <div class="space-y-8">
+                    <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 p-10">
+                        <h2 class="text-3xl font-black tracking-tighter mb-8 italic">Dispatch Center</h2>
+                        
+                        <!-- Tabs -->
+                        <div class="flex border-b mb-10 text-xs font-black uppercase tracking-widest text-gray-400">
+                            <button onclick="switchTab('broadcast')" id="tab-broadcast" class="pb-4 px-6 tab-active transition-all">Broadcast All</button>
+                            <button onclick="switchTab('reminder')" id="tab-reminder" class="pb-4 px-6 transition-all">Payment Reminders</button>
+                            <button onclick="switchTab('custom')" id="tab-custom" class="pb-4 px-6 transition-all">Custom Room</button>
+                        </div>
+
+                        <!-- Panel: Broadcast -->
+                        <div id="panel-broadcast" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-[10px] uppercase font-black text-gray-400">Message Title</label>
+                                <input type="text" id="bc-title" placeholder="e.g. Society General Meeting" class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-orange-500 outline-none font-bold">
+                            </div>
+                            <div class="space-y-2 text-right">
+                                <textarea id="bc-msg" rows="5" maxlength="500" placeholder="Type your message here..." class="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-orange-500 outline-none font-medium"></textarea>
+                                <span class="text-[10px] font-bold text-gray-300"><span id="char-count">0</span>/500 characters</span>
+                            </div>
+                            
+                            <div class="bg-orange-50 p-6 rounded-3xl border border-orange-100 italic">
+                                <p class="text-[10px] font-black uppercase text-orange-400 mb-2">Live Preview</p>
+                                <p id="preview-text" class="text-sm text-orange-900 font-medium">Waiting for message...</p>
+                            </div>
+
+                            <button onclick="sendBroadcast()" id="bc-btn" class="w-full bg-orange-600 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl shadow-orange-100 hover:bg-orange-700 hover:-translate-y-1 transition-all">
+                                Send to All 16 Residents
+                            </button>
+                        </div>
+
+                        <!-- Panel: Payment Reminder -->
+                        <div id="panel-reminder" class="hidden space-y-6">
+                            <div class="bg-amber-50 p-8 rounded-3xl border border-amber-100">
+                                <h3 class="text-xs font-black text-amber-700 uppercase mb-4 tracking-widest">Auto-Generated Reminder</h3>
+                                <p class="text-sm font-bold text-amber-900 leading-relaxed italic">
+                                    "Dear Resident, your maintenance bill for May 2026 is currently UNPAID. Please settle the amount ₹2,700 via UPI or Cash to avoid late fees. — Management"
+                                </p>
+                            </div>
+                            <div class="flex items-center justify-between p-6 bg-gray-50 rounded-2xl">
+                                <span class="text-xs font-black text-gray-500 uppercase tracking-widest">Active Defaulters Found</span>
+                                <span id="defaulter-count" class="bg-red-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase">Loading...</span>
+                            </div>
+                            <button onclick="sendReminders()" class="w-full bg-amber-500 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl shadow-amber-100 hover:bg-amber-600 transition-all">
+                                Dispatch Reminders
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: HISTORY PANEL -->
+                <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 p-10">
+                    <div class="flex items-center justify-between mb-10">
+                        <h2 class="text-3xl font-black tracking-tighter italic">Log History</h2>
+                        <button onclick="fetchHistory()" class="text-orange-600 hover:rotate-180 transition-all duration-500"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+
+                    <div id="history-list" class="space-y-6 max-h-[700px] overflow-y-auto pr-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const token = sessionStorage.getItem('maple_token');
+
+        // Tab Switching
+        function switchTab(tab) {
+            document.querySelectorAll('[id^="panel-"]').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(t => t.classList.remove('tab-active'));
+            document.getElementById(`panel-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+        }
+
+        // Live Preview
+        document.getElementById('bc-msg').addEventListener('input', e => {
+            document.getElementById('preview-text').textContent = e.target.value || 'Waiting for message...';
+            document.getElementById('char-count').textContent = e.target.value.length;
+        });
+
+        async function sendBroadcast() {
+            const title = document.getElementById('bc-title').value;
+            const message = document.getElementById('bc-msg').value;
+            const btn = document.getElementById('bc-btn');
+
+            if(!title || !message) return alert('Please fill all fields');
+            
+            btn.disabled = true; btn.textContent = 'Dispatching Engine...';
+
+            try {
+                const res = await fetch('/api/notifications/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ title, message })
+                });
+                if(res.ok) {
+                    alert('Broadcast sent successfully!');
+                    fetchHistory();
+                }
+            } catch(err) { console.error(err); }
+            finally { btn.disabled = false; btn.textContent = 'Send to All 16 Residents'; }
+        }
+
+        async function fetchHistory() {
+            const list = document.getElementById('history-list');
+            try {
+                const res = await fetch('/api/notifications/history', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const history = await res.json();
+                
+                list.innerHTML = '';
+                history.forEach(log => {
+                    const typeColor = log.type === 'broadcast' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600';
+                    list.innerHTML += `
+                        <div class="p-6 bg-gray-50 rounded-3xl border border-gray-100 hover:shadow-md transition-all">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${typeColor}">${log.type}</span>
+                                <span class="text-[10px] font-bold text-gray-400 italic">${new Date(log.sentAt).toLocaleString()}</span>
+                            </div>
+                            <h3 class="font-black text-gray-900 mb-1">${log.title}</h3>
+                            <p class="text-xs text-gray-500 line-clamp-2 mb-4 italic">"${log.message}"</p>
+                            <div class="flex items-center gap-3">
+                                <span class="text-[9px] font-black text-green-600 uppercase tracking-widest">${log.successCount} Delivery Success</span>
+                                <span class="w-1 h-1 bg-gray-300 rounded-full"></span>
+                                <span class="text-[9px] font-bold text-gray-400 italic">By ${log.sentBy}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        window.onload = () => {
+            fetchHistory();
+            // Fetch defaulter count for tab 2
+            fetch('/api/bills').then(r => r.json()).then(bills => {
+                const count = bills.filter(b => b.status === 'Unpaid').length;
+                document.getElementById('defaulter-count').textContent = `${count} Units`;
+            });
+        };
+    </script>
+</body>
+</html>

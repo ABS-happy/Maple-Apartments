@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Residents</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .resident-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .resident-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .avatar-circle { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside class="fixed inset-y-0 left-0 w-64 bg-white border-r hidden lg:block">
+            <div class="p-8">
+                <div class="flex items-center gap-3 text-orange-600 font-bold text-xl mb-12">
+                    <i class="fa-solid fa-crown text-2xl"></i> Maple Admin
+                </div>
+                <nav class="space-y-1">
+                    <a href="admin-dashboard.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-chart-pie w-6 text-center"></i> Overview
+                    </a>
+                    <a href="admin-dashboard.html#complaintsBox" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-triangle-exclamation w-6 text-center"></i> Complaints Box
+                    </a>
+                    <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-gear w-6 text-center"></i> Settings
+                    </a>
+                </nav>
+            </div>
+            <div class="absolute bottom-0 w-full p-6 border-t">
+                <a href="index.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 font-bold hover:bg-red-50"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-64 p-4 lg:p-10">
+            <!-- Top Bar -->
+            <div class="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <h1 class="text-3xl font-black tracking-tighter">Resident Directory</h1>
+                    <p class="text-sm text-gray-400 font-bold uppercase tracking-widest mt-1">Management & Profile Control</p>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <div class="relative max-w-xs">
+                        <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <input type="text" id="searchInput" placeholder="Search..." class="w-full pl-12 pr-4 py-3 rounded-2xl border-none bg-white shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all">
+                    </div>
+                    <select id="floorFilter" class="px-4 py-3 rounded-2xl border-none bg-white shadow-sm font-semibold text-sm outline-none focus:ring-2 focus:ring-orange-500 appearance-none">
+                        <option value="All">All Floors</option>
+                    </select>
+                    <button id="exportCSV" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-2xl transition-all"><i class="fa-solid fa-file-csv"></i></button>
+                </div>
+            </div>
+
+            <!-- Residents Grid -->
+            <div id="residentsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <!-- Data populated by JS -->
+            </div>
+
+            <div id="emptyState" class="hidden flex flex-col items-center justify-center py-20 text-gray-400">
+                <i class="fa-solid fa-users-slash text-6xl mb-4 opacity-20"></i>
+                <p class="text-xl font-bold">No residents found</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const residentsGrid = document.getElementById('residentsGrid');
+        const emptyState = document.getElementById('emptyState');
+        let residentsData = [];
+
+        async function fetchResidents() {
+            try {
+                const search = document.getElementById('searchInput').value;
+                const floor = document.getElementById('floorFilter').value;
+                const res = await fetch(`/api/residents?search=${search}&floor=${floor === 'All' ? '' : floor}`);
+                residentsData = await res.json();
+                renderCards();
+            } catch (err) { console.error(err); }
+        }
+
+        function renderCards() {
+            residentsGrid.innerHTML = '';
+            if (residentsData.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            residentsData.forEach(room => {
+                const floor = room.flat_number.charAt(0);
+                const color = ['bg-orange-500', 'bg-blue-500', 'bg-purple-500', 'bg-green-500'][floor-1] || 'bg-gray-500';
+                const initial = room.resident?.name?.charAt(0) || '?';
+
+                const card = `
+                    <div class="resident-card bg-white rounded-[40px] p-8 shadow-sm border border-gray-100 relative group">
+                        <div class="flex justify-between items-start mb-6">
+                            <span class="bg-orange-50 text-orange-600 px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase">Unit ${room.flat_number}</span>
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Floor ${floor}</span>
+                        </div>
+                        <div class="flex flex-col items-center text-center">
+                            <div class="avatar-circle ${color} mb-4 shadow-xl ring-4 ring-white text-xl">${initial}</div>
+                            <h3 class="text-xl font-black text-gray-900 mb-1 leading-tight tracking-tight">${room.resident?.name || 'Vacant Room'}</h3>
+                            <p class="text-xs text-gray-400 font-bold mb-8 uppercase tracking-widest">${room.isOccupied ? 'Registered' : 'Available'}</p>
+                            
+                            <a href="resident-profile.html?id=${room._id}" class="w-full py-4 bg-gray-50 text-gray-900 rounded-[24px] text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all shadow-inner">
+                                View Profile
+                            </a>
+                        </div>
+                    </div>
+                `;
+                residentsGrid.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        document.getElementById('floorFilter').addEventListener('change', fetchResidents);
+        document.getElementById('searchInput').addEventListener('input', () => {
+            clearTimeout(window.searchTimer);
+            window.searchTimer = setTimeout(fetchResidents, 300);
+        });
+
+        window.onload = () => {
+            const filter = document.getElementById('floorFilter');
+            ['1', '2', '3', '4'].forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f; opt.textContent = `Floor ${f}`;
+                filter.appendChild(opt);
+            });
+            fetchResidents();
+        };
+
+        document.getElementById('exportCSV').addEventListener('click', () => {
+            window.location.href = '/api/residents/export/csv';
+        });
+    </script>
+</body>
+</html>

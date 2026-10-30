@@ -1,0 +1,2442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Admin Console</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Flatpickr for formatting dates natively as dd/mm/yyyy -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .stat-card { transition: transform 0.2s ease; }
+        .stat-card:hover { transform: translateY(-4px); }
+        .orange-top { border-top: 4px solid #f97316; }
+        .loading-skeleton { background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+        /* Sidebar Transitions & Collapse */
+        #sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #mainContent {
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @media (min-width: 1024px) {
+            body.sidebar-collapsed #sidebar {
+                transform: translateX(-100%);
+            }
+            body.sidebar-collapsed #mainContent {
+                margin-left: 0 !important;
+            }
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 1024px) {
+            #sidebar { width: 280px; }
+            #sidebar.sidebar-open { transform: translateX(0); }
+        }
+
+        @media (max-width: 768px) {
+            #paymentsTable thead { display: none; }
+            #paymentsTable, #paymentsTable tbody, #paymentsTable tr, #paymentsTable td { display: block; width: 100%; }
+            #paymentsTable tr { 
+                margin-bottom: 2rem; 
+                border: none; 
+                border-radius: 2rem; 
+                padding: 1.5rem; 
+                background: white; 
+                box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01); 
+                transition: transform 0.2s ease;
+            }
+            #paymentsTable tr:active { transform: scale(0.98); }
+            
+            #paymentsTable td { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                padding: 1rem 0.5rem; 
+                border-bottom: 1px solid #f9fafb; 
+                white-space: normal; 
+                font-size: 0.9rem;
+            }
+            #paymentsTable td:last-child { border-bottom: none; flex-direction: column; gap: 1rem; align-items: stretch; padding-top: 1.5rem; }
+            
+            #paymentsTable td::before { 
+                content: attr(data-label); 
+                font-weight: 800; 
+                text-transform: uppercase; 
+                font-size: 10px; 
+                color: #9ca3af; 
+                letter-spacing: 0.1em; 
+            }
+            
+            /* Highlight Room and Total */
+            #paymentsTable td:first-child { 
+                border-bottom: 2px solid #fff7ed; 
+                margin-bottom: 0.75rem; 
+                padding-bottom: 1.25rem; 
+                background: #fffafa;
+                margin: -1.5rem -1.5rem 1rem -1.5rem;
+                padding: 1.5rem;
+                border-radius: 2rem 2rem 0 0;
+            }
+            #paymentsTable td:first-child::before { display: none; }
+            #paymentsTable td:first-child strong { font-size: 1.25rem; color: #f97316; }
+            
+            #paymentsTable td[data-label="Total Amount"] {
+                background: #fff7ed;
+                margin: 0.5rem -0.5rem;
+                padding: 1rem;
+                border-radius: 1rem;
+                border-bottom: none;
+            }
+            #paymentsTable td[data-label="Total Amount"] span { font-size: 1.1rem; font-weight: 900; }
+
+            /* Action Buttons on Mobile */
+            .mobile-stack { flex-direction: column; gap: 0.5rem; width: 100%; }
+            .mobile-stack button { width: 100%; padding: 1rem !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[45] hidden transition-opacity lg:hidden"></div>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+            <div class="p-6">
+                <div class="flex items-center justify-between text-orange-600 font-bold text-xl mb-10">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-crown text-2xl"></i> Maple Admin
+                    </div>
+                    <button id="sidebarCloseBtn" class="lg:hidden p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all cursor-pointer" aria-label="Close Sidebar">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <nav class="space-y-1">
+                    <a href="admin-dashboard.html" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-50 text-orange-600 font-bold transition-all">
+                        <i class="fa-solid fa-chart-pie w-6 text-center"></i> Overview
+                    </a>
+                    <a href="#paymentHistoryBox" id="sidebarPaymentHistoryLink" onclick="scrollToPaymentHistory(event)" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-clock-rotate-left w-6 text-center"></i> Payment History
+                    </a>
+                    <a href="admin-dashboard.html#complaintsBox" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-triangle-exclamation w-6 text-center"></i> Complaints Box
+                    </a>
+                    <a href="settings.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-100 font-semibold transition-all">
+                        <i class="fa-solid fa-gear w-6 text-center"></i> Settings
+                    </a>
+                </nav>
+            </div>
+            <div class="absolute bottom-0 w-full p-6 border-t mt-auto">
+                <a href="index.html" onclick="sessionStorage.clear()" class="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-all font-medium">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main id="mainContent" class="flex-1 w-full max-w-7xl mx-auto p-4 lg:p-8 lg:ml-64">
+            <!-- Header Section -->
+            <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <button id="menuToggle" class="p-2.5 rounded-xl border border-gray-200 bg-white hover:bg-orange-50 hover:text-orange-600 transition-all text-gray-600 flex items-center justify-center cursor-pointer shadow-xs" aria-label="Toggle Navigation Sidebar" title="Toggle Sidebar">
+                        <i class="fa-solid fa-bars text-base"></i>
+                    </button>
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight">Admin Control Panel</h1>
+                        <p class="text-gray-500 text-sm">Managing building finances and resident dues</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="refreshBtn" class="p-2.5 rounded-xl border bg-white hover:bg-gray-50 transition-all" title="Refresh Data">
+                        <i class="fa-solid fa-rotate text-gray-400"></i>
+                    </button>
+
+                    <button id="installPwaBtn" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-download"></i> Download App
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="stat-card bg-white p-6 rounded-2xl shadow-sm border border-gray-100 orange-top flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center text-xl shadow-inner"><i class="fa-solid fa-coins"></i></div>
+                    <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Expected Collection</p><h3 id="statTotalExpected" class="text-2xl font-black">₹0</h3></div>
+                </div>
+                <div class="stat-card bg-white p-6 rounded-2xl shadow-sm border border-gray-100 orange-top flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-green-50 text-green-600 flex items-center justify-center text-xl shadow-inner"><i class="fa-solid fa-vault"></i></div>
+                    <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Collected (Paid)</p><h3 id="statTotalCollected" class="text-2xl font-black">₹0</h3></div>
+                </div>
+                <div class="stat-card bg-white p-6 rounded-2xl shadow-sm border border-gray-100 orange-top flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-xl shadow-inner"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Pending (Unpaid)</p><h3 id="statTotalPending" class="text-2xl font-black">₹0</h3></div>
+                </div>
+            </div>
+
+            <!-- Table Card -->
+            <div class="bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-8 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold">Resident Billing Records</h2>
+                        <p id="roomCountText" class="text-xs text-gray-400 mt-1 italic">Loading...</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Floor Filter -->
+                        <div class="relative flex items-center bg-gray-50 border border-gray-100 rounded-xl hover:bg-gray-100 transition-all">
+                            <div class="pl-4 pr-1 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-filter text-gray-400 text-xs"></i>
+                            </div>
+                            <select id="floorFilter" class="pl-2 pr-6 py-2.5 bg-transparent text-xs font-bold focus:ring-2 focus:ring-orange-200 transition-all outline-none appearance-none cursor-pointer tracking-wide">
+                                <option value="All">All Floors</option>
+                            </select>
+                        </div>
+
+                        <!-- Payment Status Filter -->
+                        <div class="relative flex items-center bg-gray-50 border border-gray-100 rounded-xl hover:bg-gray-100 transition-all">
+                            <div class="pl-4 pr-1 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-money-bill-wave text-gray-400 text-xs"></i>
+                            </div>
+                            <select id="statusFilter" class="pl-2 pr-6 py-2.5 bg-transparent text-xs font-bold focus:ring-2 focus:ring-orange-200 transition-all outline-none appearance-none cursor-pointer tracking-wide">
+                                <option value="All">All Status</option>
+                                <option value="paid">Paid</option>
+                                <option value="unpaid">Unpaid</option>
+                            </select>
+                        </div>
+
+                        <!-- Parking Filter -->
+                        <div class="relative flex items-center bg-gray-50 border border-gray-100 rounded-xl hover:bg-gray-100 transition-all">
+                            <div class="pl-4 pr-1 flex items-center pointer-events-none">
+                                <i class="fa-solid fa-car text-gray-400 text-xs"></i>
+                            </div>
+                            <select id="parkingFilter" class="pl-2 pr-6 py-2.5 bg-transparent text-xs font-bold focus:ring-2 focus:ring-orange-200 transition-all outline-none appearance-none cursor-pointer tracking-wide">
+                                <option value="All">All Users</option>
+                                <option value="With Parking">With Parking</option>
+                                <option value="No Parking">No Parking</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto min-h-[400px]">
+                    <div id="loadingState" class="p-8 space-y-4">
+                        <div class="h-12 loading-skeleton rounded-2xl w-full"></div>
+                        <div class="h-12 loading-skeleton rounded-2xl w-full"></div>
+                    </div>
+
+                    <table id="paymentsTable" class="w-full text-left hidden whitespace-nowrap">
+                        <thead class="bg-gray-50/50 text-gray-400 text-[10px] uppercase tracking-widest font-black">
+                            <tr>
+                                <th class="px-4 py-3.5 align-middle text-left font-black w-28">Room No</th>
+                                <th class="px-3 py-3.5 align-middle text-left font-black min-w-[150px]">Resident</th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-24"><div contenteditable="true" id="hdr_maintenance" class="outline-none focus:bg-white focus:text-gray-900 focus:ring-2 ring-orange-200 rounded px-1 transition-all">Maintenance</div></th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-24"><div contenteditable="true" id="hdr_festival" class="outline-none focus:bg-white focus:text-gray-900 focus:ring-2 ring-orange-200 rounded px-1 transition-all">Festival</div></th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-24"><div contenteditable="true" id="hdr_parking" class="outline-none focus:bg-white focus:text-gray-900 focus:ring-2 ring-orange-200 rounded px-1 transition-all">Parking</div></th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-24"><div contenteditable="true" id="hdr_others" class="outline-none focus:bg-white focus:text-gray-900 focus:ring-2 ring-orange-200 rounded px-1 transition-all">Others</div></th>
+                                <th class="px-3 py-3.5 align-middle text-center font-black w-28">Total Amount</th>
+                                <th class="px-3 py-3.5 align-middle text-center font-black w-24">Status</th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-32">
+                                    <div class="flex flex-col items-center justify-center gap-1.5 relative">
+                                        <span class="text-[10px] uppercase font-black tracking-widest text-gray-400">Due Date</span>
+                                        <button id="bulkDueDateBtn" onclick="toggleBulkDueDatePopover(event)" type="button" title="Set Due Date for All Units" class="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-orange-50 border border-gray-200 hover:border-orange-300 rounded-lg text-[9px] font-bold text-gray-600 hover:text-orange-600 shadow-2xs cursor-pointer transition-all active:scale-95 whitespace-nowrap">
+                                            <i class="fa-regular fa-calendar text-[10px] text-orange-500"></i>
+                                            <span>Set All</span>
+                                        </button>
+
+                                        <!-- Compact Date Picker Popover -->
+                                        <div id="bulkDueDatePopover" class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[90] bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 w-64 text-left normal-case tracking-normal">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <span class="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                                                    <i class="fa-solid fa-calendar-days text-orange-500 text-xs"></i> Set Due Date for All
+                                                </span>
+                                                <button onclick="closeBulkDueDatePopover(event)" type="button" class="text-gray-400 hover:text-gray-600 text-xs cursor-pointer p-1">
+                                                    <i class="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+                                            <p class="text-[11px] text-gray-400 font-medium mb-3 leading-snug">Choose a due date to apply across all 16 units:</p>
+                                            <input type="date" id="bulkDueDateInput" class="w-full text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 mb-3.5 outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-500 text-gray-800">
+                                            <div class="flex gap-2">
+                                                <button onclick="closeBulkDueDatePopover(event)" type="button" class="flex-1 py-1.5 text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition-all">
+                                                    Cancel
+                                                </button>
+                                                <button id="applyBulkDueDateBtn" onclick="applyBulkDueDate(event)" type="button" class="flex-1 py-1.5 text-[11px] font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center justify-center gap-1">
+                                                    <span>Apply to All</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-32">
+                                    <div class="flex flex-col items-center justify-center gap-1.5">
+                                        <span class="text-[10px] uppercase font-black tracking-widest text-gray-400">Notification</span>
+                                        <button id="bulkNotifyBtn" onclick="openBulkNotifyModal(event)" type="button" title="Send Notification to All Units" class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-[9px] font-bold text-indigo-700 shadow-2xs cursor-pointer transition-all active:scale-95 whitespace-nowrap">
+                                            <i class="fa-regular fa-paper-plane text-[10px] text-indigo-600"></i>
+                                            <span>Send to All</span>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="px-2 py-3.5 align-middle text-center font-black w-36">
+                                    <div class="flex flex-col items-center justify-center gap-1.5">
+                                        <span class="text-[10px] uppercase font-black tracking-widest text-gray-400">Actions</span>
+                                        <button id="bulkPublishBtn" onclick="openBulkPublishModal(event)" type="button" title="Save & Publish All Bills to Resident Portals" class="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg text-[9px] font-bold shadow-2xs hover:shadow-xs cursor-pointer transition-all active:scale-95 whitespace-nowrap">
+                                            <i class="fa-solid fa-bolt text-[9px]"></i>
+                                            <span>Save & Publish All</span>
+                                        </button>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentsBody" class="divide-y divide-gray-50 font-medium text-sm">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+                        <!-- ======================================================== -->
+            <!-- PAYMENT HISTORY BOX (ALL 16 ROOMS IN CHRONOLOGICAL ORDER) -->
+            <!-- ======================================================== -->
+            <div id="paymentHistoryBox" class="mt-8 bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-8 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-lg font-bold"><i class="fa-solid fa-clock-rotate-left text-orange-500 mr-2"></i> All Resident Payment History</h2>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-700" id="histBadgeCount">0 Payments</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1 italic">Chronological timeline of all rent & maintenance payments made via Razorpay, UPI, & Bank Transfer</p>
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Search Flat or Name -->
+                        <div class="relative flex items-center bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                            <i class="fa-solid fa-magnifying-glass text-gray-400 text-xs mr-2"></i>
+                            <input type="text" id="histSearchInput" placeholder="Search room, resident..." oninput="filterPaymentHistory()" class="bg-transparent text-xs font-semibold outline-none w-36 md:w-44 text-gray-700">
+                        </div>
+
+                        <!-- Method Filter -->
+                        <div class="relative flex items-center bg-gray-50 border border-gray-100 rounded-xl">
+                            <select id="histMethodFilter" onchange="filterPaymentHistory()" class="pl-3 pr-7 py-2 bg-transparent text-xs font-bold text-gray-600 focus:ring-2 focus:ring-orange-200 outline-none cursor-pointer">
+                                <option value="All">All Methods</option>
+                                <option value="Razorpay">Razorpay Online</option>
+                                <option value="UPI">UPI</option>
+                                <option value="IMPS">IMPS / NEFT</option>
+                                <option value="Cash">Cash</option>
+                            </select>
+                        </div>
+
+                        <button onclick="loadAllPaymentsHistory()" class="p-2.5 rounded-xl border bg-white hover:bg-gray-50 transition-all text-gray-500 hover:text-orange-600" title="Refresh Payments">
+                            <i class="fa-solid fa-rotate text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Summary Cards Bar -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6 bg-orange-50/40 border-b border-orange-100/50">
+                    <div class="bg-white p-4 rounded-2xl border border-orange-100/60 shadow-2xs">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">Total Collected</span>
+                        <strong class="text-lg font-black text-gray-900" id="histTotalCollected">₹0</strong>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-orange-100/60 shadow-2xs">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">Razorpay Online</span>
+                        <strong class="text-lg font-black text-orange-600" id="histRazorpayTotal">₹0</strong>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-orange-100/60 shadow-2xs">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">Total Transactions</span>
+                        <strong class="text-lg font-black text-gray-900" id="histTotalTxns">0</strong>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-orange-100/60 shadow-2xs">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-1">Online Share</span>
+                        <strong class="text-lg font-black text-green-600" id="histOnlinePct">0%</strong>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto min-h-[240px]">
+                    <table class="w-full text-left whitespace-nowrap">
+                        <thead class="bg-gray-50/50 text-gray-400 text-[10px] uppercase tracking-widest font-black">
+                            <tr>
+                                <th class="px-6 py-4">Date & Time</th>
+                                <th class="px-6 py-4">Room No</th>
+                                <th class="px-6 py-4">Resident</th>
+                                <th class="px-6 py-4">Billing Month</th>
+                                <th class="px-6 py-4 text-center">Amount</th>
+                                <th class="px-6 py-4">Payment Method / ID</th>
+                                <th class="px-6 py-4 text-center">Status</th>
+                                <th class="px-6 py-4 text-right">Receipt</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allPaymentsTableBody" class="divide-y divide-gray-50 font-medium text-sm">
+                            <tr>
+                                <td colspan="8" class="text-center py-8 text-gray-400">
+                                    <i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading payment history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- COMPLAINTS BOX -->
+            <div id="complaintsBox" class="mt-8 bg-white rounded-[32px] shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-8 border-b">
+                    <h2 class="text-lg font-bold"><i class="fa-solid fa-triangle-exclamation text-orange-500 mr-2"></i> Resident Complaints Box</h2>
+                    <p class="text-xs text-gray-400 mt-1 italic">Real-time tracker of issues raised by residents</p>
+                </div>
+                <div class="overflow-x-auto min-h-[200px]">
+                    <table class="w-full text-left whitespace-nowrap">
+                        <thead class="bg-gray-50/50 text-gray-400 text-[10px] uppercase tracking-widest font-black">
+                            <tr>
+                                <th class="px-6 py-5">Date</th>
+                                <th class="px-6 py-5">Room</th>
+                                <th class="px-6 py-5">Category / Subject</th>
+                                <th class="px-6 py-5 w-[150px]">Current Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminComplaintsBody" class="divide-y divide-gray-50 font-medium text-sm">
+                            <tr><td colspan="4" class="text-center py-8 text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading complaints...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- END COMPLAINTS BOX -->
+        </main>
+    </div>
+
+    <!-- ROOM DETAIL MODAL -->
+    <div id="roomDetailModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all">
+        <div class="bg-white rounded-[40px] w-full max-w-4xl overflow-hidden shadow-2xl relative">
+            <div class="bg-orange-600 p-10 text-white relative">
+                <button onclick="closeDetailModal()" class="absolute top-8 right-8 text-white/50 hover:text-white transition-all"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                <div class="flex items-end gap-3 mb-2">
+                    <h3 class="text-4xl font-black leading-none">Room <span id="detailFlatNumber">101</span></h3>
+                    <span id="detailStatusBadge"></span>
+                </div>
+                <p id="detailOwnerName" class="text-orange-100 font-bold opacity-80"></p>
+            </div>
+            <div class="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+
+                <!-- Col 1: Resident Profile Info -->
+                <div class="bg-gray-50 rounded-3xl p-6 border border-gray-100">
+                    <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-5 flex items-center gap-2">
+                        <i class="fa-solid fa-id-card text-orange-500"></i> Resident Profile
+                    </h4>
+                    <div id="residentProfileInfo" class="space-y-3 text-sm">
+                        <div class="text-gray-300 italic text-xs text-center py-4">Loading profile...</div>
+                    </div>
+                </div>
+
+                <!-- Col 2: Payment History -->
+                <div class="pt-6">
+                    <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-5 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Payment History
+                    </h4>
+                    <div class="max-h-[260px] overflow-y-auto pr-2">
+                        <table class="w-full text-left">
+                            <tbody id="historyTableBody" class="divide-y divide-gray-50">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="historyEmpty" class="text-center py-10 hidden">
+                            <i class="fa-solid fa-receipt text-gray-100 text-5xl mb-2"></i>
+                            <p class="text-xs text-gray-300 font-bold italic">No history recorded yet</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Col 3: Manual Transaction -->
+                <div class="bg-gray-50 rounded-[32px] p-6 border border-gray-100 shadow-inner">
+                    <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-5 italic">Record Manual Transaction</h4>
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <label class="block text-[10px] font-black text-gray-400 mb-1 ml-1 uppercase">Method</label>
+                            <select id="recordMethod" class="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-orange-100 transition-all outline-none appearance-none">
+                                <option value="UPI">UPI / QR Scan</option>
+                                <option value="Cash">Cash Payment</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                            </select>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] font-black text-gray-400 mb-1 ml-1 uppercase">Amount</label>
+                            <input type="number" id="recordAmount" value="2500" class="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none">
+                        </div>
+                        <div class="relative">
+                            <label class="block text-[10px] font-black text-gray-400 mb-1 ml-1 uppercase">Due Date</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="recordDueDate" class="fp-date w-full bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-orange-100 transition-all outline-none">
+                                <button onclick="saveAllChanges()" id="saveDueDateBtn" class="bg-orange-600 text-white font-black px-5 py-3 rounded-2xl shadow-xl shadow-orange-100 hover:bg-orange-700 hover:-translate-y-1 transition-all active:scale-95 uppercase tracking-widest text-xs whitespace-nowrap">
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                        <button onclick="openNotifyModalFromDetail()" class="w-full mt-4 py-3 bg-indigo-50 text-indigo-600 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-regular fa-envelope"></i> Email Resident
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== NOTIFICATION MODAL ===== -->
+    <div id="notifyModal" class="fixed inset-0 z-[115] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all">
+        <div class="bg-white rounded-[36px] w-full max-w-lg shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-br from-indigo-600 to-violet-600 p-8 text-white relative">
+                <button onclick="closeNotifyModal()" class="absolute top-6 right-7 text-white/50 hover:text-white transition-all text-xl"><i class="fa-solid fa-xmark"></i></button>
+                <div class="flex items-center gap-3 mb-1">
+                    <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"><i class="fa-regular fa-paper-plane text-lg"></i></div>
+                    <div>
+                        <p class="text-white/70 text-xs font-bold uppercase tracking-widest">Send Reminder</p>
+                        <h3 class="text-xl font-black" id="notifyModalTitle">Room 101</h3>
+                    </div>
+                </div>
+            </div>
+            <!-- Body -->
+            <div class="p-8 space-y-5">
+                <!-- Message Editor -->
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Message <span class="text-indigo-500 normal-case font-semibold">(editable)</span></label>
+                    <textarea id="notifyMessage" rows="5" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-sm font-medium text-gray-700 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 resize-none transition-all leading-relaxed"></textarea>
+                </div>
+                <!-- Channel Buttons -->
+                <div>
+                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Send Via</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="sendNotification('email')" class="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border-2 border-gray-100 hover:border-red-400 hover:bg-red-50 transition-all group">
+                            <i class="fa-solid fa-envelope text-red-500 text-xl group-hover:scale-110 transition-transform"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-red-600">Email</span>
+                        </button>
+                        <button onclick="sendNotification('website')" class="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border-2 border-gray-100 hover:border-indigo-400 hover:bg-indigo-50 transition-all group">
+                            <i class="fa-solid fa-bell text-indigo-500 text-xl group-hover:scale-110 transition-transform"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-indigo-600">App</span>
+                        </button>
+                    </div>
+                </div>
+                <button onclick="closeNotifyModal()" class="w-full py-3 text-xs font-black uppercase tracking-widest border-2 border-gray-100 rounded-2xl hover:bg-gray-50 transition-all text-gray-400">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Bulk Mark Paid) -->
+    <div id="confirmModal" class="fixed inset-0 z-[110] hidden items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div class="bg-white rounded-[32px] w-full max-w-sm p-10 shadow-2xl">
+            <h3 class="text-xl font-black mb-4">Bulk Mark Paid?</h3>
+            <p class="text-gray-500 text-sm mb-10 leading-relaxed font-medium">This will set all 16 rooms to <span class="text-green-600 font-bold">Paid</span> for the current cycle.</p>
+            <div class="flex gap-4">
+                <button onclick="closeModal()" class="flex-1 py-4 font-black border-2 border-gray-50 rounded-2xl hover:bg-gray-50 text-xs uppercase tracking-widest transition-all">Cancel</button>
+                <button id="confirmModalBtn" class="flex-1 py-4 font-black bg-orange-600 text-white rounded-2xl hover:bg-orange-700 text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-100">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BULK NOTIFICATION MODAL -->
+    <div id="bulkNotifyModal" class="fixed inset-0 z-[120] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all">
+        <div class="bg-white rounded-[36px] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white relative">
+                <button onclick="closeBulkNotifyModal()" class="absolute top-6 right-7 text-white/70 hover:text-white transition-all text-xl cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                        <i class="fa-solid fa-bullhorn text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Broadcast Announcement</span>
+                        <h3 class="text-2xl font-black">Notify All Residents</h3>
+                    </div>
+                </div>
+                <p class="text-indigo-100 text-xs font-semibold mt-2 opacity-95">Dispatches in-app notification & email alert to all 16 units</p>
+            </div>
+
+            <!-- Body -->
+            <div class="p-8 space-y-5">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Subject / Title</label>
+                    <input type="text" id="bulkNotifyTitle" value="Monthly Maintenance Reminder" class="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 outline-none focus:ring-4 focus:ring-indigo-100 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Message Note</label>
+                    <textarea id="bulkNotifyMessage" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-xs font-semibold text-gray-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all resize-none"></textarea>
+                </div>
+
+                <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-3 text-xs text-indigo-900 font-semibold">
+                    <i class="fa-solid fa-circle-check text-indigo-600 text-base"></i>
+                    <span>Target: All 16 Apartment Units (Flats 101 - 404)</span>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeBulkNotifyModal()" type="button" class="flex-1 py-3.5 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-xs font-black uppercase tracking-wider text-gray-500 transition-all cursor-pointer">
+                        Cancel
+                    </button>
+                    <button id="confirmBulkNotifyBtn" onclick="executeBulkNotify()" type="button" class="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-200 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-regular fa-paper-plane text-xs"></i>
+                        <span>Confirm & Send to All</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BULK SAVE & PUBLISH ALL MODAL -->
+    <div id="bulkPublishModal" class="fixed inset-0 z-[120] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all">
+        <div class="bg-white rounded-[36px] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-orange-500 to-amber-500 p-8 text-white relative">
+                <button onclick="closeBulkPublishModal()" class="absolute top-6 right-7 text-white/70 hover:text-white transition-all text-xl cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                        <i class="fa-solid fa-bolt text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-orange-100 text-[10px] font-black uppercase tracking-widest">Master Commit</span>
+                        <h3 class="text-2xl font-black">Save & Publish All Bills</h3>
+                    </div>
+                </div>
+                <p class="text-orange-100 text-xs font-semibold mt-2 opacity-95">Commit and publish updated billing records to all resident portals</p>
+            </div>
+
+            <!-- Body -->
+            <div class="p-8 space-y-6">
+                <!-- Summary Metrics Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-orange-50 border border-orange-100 p-4 rounded-2xl text-center">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-orange-600 mb-1">Total Rooms</p>
+                        <h4 id="bulkPublishRoomCount" class="text-2xl font-black text-gray-900">16 Units</h4>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl text-center">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-amber-700 mb-1">Aggregated Billing</p>
+                        <h4 id="bulkPublishTotalAmount" class="text-2xl font-black text-orange-600">₹0</h4>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-100 p-4 rounded-2xl text-xs text-gray-600 leading-relaxed font-medium space-y-2">
+                    <div class="flex items-start gap-2.5">
+                        <i class="fa-solid fa-floppy-disk text-orange-500 mt-0.5"></i>
+                        <span>Saves all modified fee breakdowns (Maintenance, Festival, Parking, Others, Due Dates) directly into MongoDB.</span>
+                    </div>
+                    <div class="flex items-start gap-2.5">
+                        <i class="fa-solid fa-globe text-orange-500 mt-0.5"></i>
+                        <span>Immediately updates and publishes individual billing cards on each resident's personal portal.</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeBulkPublishModal()" type="button" class="flex-1 py-3.5 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-xs font-black uppercase tracking-wider text-gray-500 transition-all cursor-pointer">
+                        Cancel
+                    </button>
+                    <button id="confirmBulkPublishBtn" onclick="executeBulkPublish()" type="button" class="flex-1 py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-orange-200 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-bolt text-xs"></i>
+                        <span>Save & Publish All</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UPDATE & SEND BILL CONFIRMATION MODAL -->
+    <div id="sendBillConfirmModal" class="fixed inset-0 z-[120] hidden items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all">
+        <div class="bg-white rounded-[36px] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-in">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-orange-500 to-amber-500 p-8 text-white relative">
+                <button onclick="closeSendBillConfirmModal()" class="absolute top-6 right-7 text-white/70 hover:text-white transition-all text-xl cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                        <i class="fa-solid fa-paper-plane text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-orange-100 text-[10px] font-black uppercase tracking-widest">Official Publication</span>
+                        <h3 class="text-2xl font-black" id="confirmModalRoomTitle">Room 101 Bill</h3>
+                    </div>
+                </div>
+                <p id="confirmModalResidentName" class="text-orange-100 text-sm font-semibold mt-2 opacity-95">Resident: Loading...</p>
+            </div>
+
+            <!-- Body -->
+            <div class="p-8 space-y-6">
+                <div class="bg-gray-50 border border-gray-100 rounded-2xl p-5 space-y-3">
+                    <div class="flex justify-between items-center text-xs text-gray-500 font-semibold">
+                        <span>Maintenance:</span>
+                        <span id="confirmBreakdownMaint" class="font-bold text-gray-800">₹0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-gray-500 font-semibold">
+                        <span>Festival:</span>
+                        <span id="confirmBreakdownFest" class="font-bold text-gray-800">₹0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-gray-500 font-semibold">
+                        <span>Parking:</span>
+                        <span id="confirmBreakdownPark" class="font-bold text-gray-800">₹0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-gray-500 font-semibold">
+                        <span>Others:</span>
+                        <span id="confirmBreakdownOth" class="font-bold text-gray-800">₹0</span>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200 flex justify-between items-center">
+                        <span class="text-sm font-black text-gray-900 uppercase tracking-wide">Total Amount Due</span>
+                        <span id="confirmBreakdownTotal" class="text-2xl font-black text-orange-600">₹0</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-gray-500 pt-1 font-semibold">
+                        <span>Due Date:</span>
+                        <span id="confirmBreakdownDueDate" class="font-bold text-gray-800">N/A</span>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 bg-orange-50 border border-orange-100 p-4 rounded-2xl text-xs text-orange-800 leading-relaxed font-medium">
+                    <i class="fa-solid fa-bell text-orange-500 mt-0.5 text-base"></i>
+                    <p>
+                        Confirming this action will commit the bill, update the resident's portal immediately, and trigger official notification delivery.
+                    </p>
+                </div>
+
+                <!-- Modal Action Buttons -->
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeSendBillConfirmModal()" class="flex-1 py-3.5 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-xs font-black uppercase tracking-wider text-gray-500 transition-all cursor-pointer">
+                        Cancel
+                    </button>
+                    <button id="confirmPublishAndSendBtn" onclick="executePublishAndSend()" class="flex-1 py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-orange-200 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-floppy-disk text-xs"></i> Confirm & Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-10 right-10 z-[120] translate-y-20 opacity-0 transition-all duration-500">
+        <div class="bg-black text-white px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 font-bold text-sm">
+            <i class="fa-solid fa-circle-check text-orange-500"></i>
+            <span id="toastMsg">Action completed</span>
+        </div>
+    </div>
+
+    <script>
+        let roomsData = [];
+        let currentlySelectedFlat = null;
+        const roomBaselineMap = {};
+        let pendingPublishRoom = null;
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            const userStr = sessionStorage.getItem('maple_user');
+            if (!userStr || JSON.parse(userStr).role !== 'Admin') { window.location.href = 'index.html'; return; }
+            
+            // Restore desktop sidebar collapse preference
+            if (window.innerWidth >= 1024 && localStorage.getItem('maple_admin_sidebar_collapsed') === 'true') {
+                document.body.classList.add('sidebar-collapsed');
+            }
+
+            // Initial load
+            fetchData();
+            loadAdminComplaints();
+            loadAllPaymentsHistory();
+
+            // Real-time updates: Auto-poll data every 10 seconds to catch resident updates
+            setInterval(() => {
+                fetchData(true); // pass 'isAuto' to prevent flickering loading state
+                loadAdminComplaints(true);
+                loadAllPaymentsHistory(true);
+            }, 10000);
+        });
+
+        async function fetchData(isAuto = false) {
+            if (!isAuto) setLoading(true);
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/rooms', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('Overview fetching failed');
+                const rawData = await res.json();
+                roomsData = rawData.rooms || [];
+                
+                renderUI();
+                loadHeaders();
+                updateDynamicStats(isAuto);
+            } catch (err) { 
+                console.error(err);
+                showToast('Connection Error. Check backend or login', true); 
+                roomsData = roomsData || [];
+                renderUI();
+            }
+            finally { setTimeout(() => setLoading(false), 800); }
+        }
+
+
+
+        function renderUI() {
+            populateFloors();
+            filterAndDisplay();
+        }
+
+        const editableHeaders = ['hdr_maintenance', 'hdr_festival', 'hdr_parking', 'hdr_others'];
+        function loadHeaders() {
+            editableHeaders.forEach(id => {
+                const val = localStorage.getItem(id);
+                const el = document.getElementById(id);
+                if (el && val) el.textContent = val;
+                
+                if (el) {
+                    el.addEventListener('blur', function() {
+                        localStorage.setItem(id, this.textContent);
+                    });
+                }
+            });
+        }
+
+        function getRoomCurrentData(room) {
+            const flatNo = room.flat_number || room.roomNumber;
+            const elMaint = document.getElementById(`maint_${room._id}`);
+            const elFest = document.getElementById(`fest_${room._id}`);
+            const elPark = document.getElementById(`park_${room._id}`);
+            const elOth = document.getElementById(`oth_${room._id}`);
+            const elStatus = document.getElementById(`status_${room._id}`);
+
+            // If DOM elements exist, they hold the live values
+            if (elMaint && elFest && elPark && elOth && elStatus) {
+                const m = Number(elMaint.value) || 0;
+                const f = Number(elFest.value) || 0;
+                const p = Number(elPark.value) || 0;
+                const o = Number(elOth.value) || 0;
+                return {
+                    total: m + f + p + o,
+                    status: elStatus.value || 'unpaid'
+                };
+            }
+
+            // Otherwise check local draft
+            const localDraftRaw = localStorage.getItem('maple_admin_draft_' + flatNo);
+            if (localDraftRaw) {
+                try {
+                    const ld = JSON.parse(localDraftRaw);
+                    if (ld && ld.isDraft) {
+                        const m = Number(ld.maint) || 0;
+                        const f = Number(ld.fest) || 0;
+                        const p = Number(ld.park) || 0;
+                        const o = Number(ld.oth) || 0;
+                        return {
+                            total: m + f + p + o,
+                            status: ld.status || room.paymentStatus || 'unpaid'
+                        };
+                    }
+                } catch(e) {}
+            }
+
+            // Otherwise check server draft charges
+            if (room.hasDraft && room.draftCharges) {
+                const m = Number(room.draftCharges.rental) || 0;
+                const f = Number(room.draftCharges.festival) || 0;
+                const p = Number(room.draftCharges.parking) || 0;
+                const o = Number(room.draftCharges.others) || 0;
+                return {
+                    total: m + f + p + o,
+                    status: room.paymentStatus || 'unpaid'
+                };
+            }
+
+            // Fallback to baseline database charges
+            const c = room.charges || {};
+            const total = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
+            return {
+                total,
+                status: room.paymentStatus || 'unpaid'
+            };
+        }
+
+        function updateDynamicStats(immediate = false) {
+            let expected = 0;
+            let collected = 0;
+            let pending = 0;
+            
+            (roomsData || []).forEach(r => {
+                const data = getRoomCurrentData(r);
+                expected += data.total;
+                if (data.status === 'paid') {
+                    collected += data.total;
+                } else {
+                    pending += data.total;
+                }
+                
+                const elStatus = document.getElementById(`status_${r._id}`);
+                if (elStatus) {
+                    elStatus.className = `font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded outline-none cursor-pointer transition-all ${elStatus.value === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`;
+                }
+            });
+            
+            animateCount('statTotalExpected', Math.round(expected), immediate);
+            animateCount('statTotalCollected', Math.round(collected), immediate);
+            animateCount('statTotalPending', Math.round(pending), immediate);
+        }
+
+        function populateFloors() {
+            const uniqueFloors = [...new Set(roomsData.map(r => r.flat_number.charAt(0)))].sort();
+            const filter = document.getElementById('floorFilter');
+            filter.innerHTML = '<option value="All">All Floors</option>';
+            uniqueFloors.forEach(f => filter.innerHTML += `<option value="${f}">Floor ${f}</option>`);
+        }
+
+        function filterAndDisplay() {
+            const floor = document.getElementById('floorFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            const parking = document.getElementById('parkingFilter').value;
+
+            const filtered = roomsData.filter(r => {
+                const floorMatch = floor === 'All' || r.flat_number.startsWith(floor);
+                const statusMatch = status === 'All' || r.paymentStatus === status;
+                
+                const hasParking = (r.charges?.parking || 0) > 0;
+                const parkingMatch = parking === 'All' || 
+                                   (parking === 'With Parking' && hasParking) || 
+                                   (parking === 'No Parking' && !hasParking);
+
+                return floorMatch && statusMatch && parkingMatch;
+            });
+
+            const body = document.getElementById('paymentsBody');
+            body.innerHTML = '';
+            
+            document.getElementById('roomCountText').textContent = `Showing ${filtered.length} of ${roomsData.length} records`; 
+
+            filtered.forEach(room => {
+                const flatNo = room.flat_number || room.roomNumber;
+                const c = room.charges || {};
+
+                // Baseline values from active database record
+                const baseMaint = Number(c.rental) || 0;
+                const baseFest = Number(c.festival) || 0;
+                const basePark = Number(c.parking) || 0;
+                const baseOth = Number(c.others) || 0;
+                const baseDueDate = room.dueDate ? new Date(room.dueDate).toISOString().split('T')[0] : '';
+                const baseResident = room.resident?.name || `Owner ${flatNo}`;
+                const baseStatus = room.paymentStatus || 'unpaid';
+
+                roomBaselineMap[room._id] = {
+                    flatNo,
+                    maint: baseMaint,
+                    fest: baseFest,
+                    park: basePark,
+                    oth: baseOth,
+                    dueDate: baseDueDate,
+                    resident: baseResident,
+                    status: baseStatus
+                };
+
+                // Check local draft first, then server draft
+                let currentMaint = baseMaint;
+                let currentFest = baseFest;
+                let currentPark = basePark;
+                let currentOth = baseOth;
+                let currentDueDate = baseDueDate;
+                let currentResident = baseResident;
+                let isDraft = false;
+
+                const localDraftRaw = localStorage.getItem('maple_admin_draft_' + flatNo);
+                if (localDraftRaw) {
+                    try {
+                        const ld = JSON.parse(localDraftRaw);
+                        if (ld && ld.isDraft) {
+                            currentMaint = Number(ld.maint) || 0;
+                            currentFest = Number(ld.fest) || 0;
+                            currentPark = Number(ld.park) || 0;
+                            currentOth = Number(ld.oth) || 0;
+                            if (ld.dueDate !== undefined) currentDueDate = ld.dueDate;
+                            if (ld.resident !== undefined) currentResident = ld.resident;
+                            isDraft = true;
+                        }
+                    } catch(e) {}
+                } else if (room.hasDraft && room.draftCharges) {
+                    currentMaint = Number(room.draftCharges.rental) || 0;
+                    currentFest = Number(room.draftCharges.festival) || 0;
+                    currentPark = Number(room.draftCharges.parking) || 0;
+                    currentOth = Number(room.draftCharges.others) || 0;
+                    if (room.draftDueDate) currentDueDate = new Date(room.draftDueDate).toISOString().split('T')[0];
+                    isDraft = true;
+                }
+
+                const total = currentMaint + currentFest + currentPark + currentOth;
+                const isPaid = room.paymentStatus === 'paid';
+
+                const tr = document.createElement('tr');
+                tr.id = `row_${room._id}`;
+                tr.className = `hover:bg-orange-50/20 transition-all cursor-pointer border-b border-gray-50 ${isDraft ? 'bg-amber-50/25 border-l-4 border-amber-400' : ''}`;
+                
+                tr.onclick = (e) => {
+                    // Prevent viewing modal if clicking input or button areas
+                    if(['INPUT', 'BUTTON', 'SELECT', 'I'].includes(e.target.tagName)) return;
+                    openRoomDetail(room);
+                };
+                
+                const innerInputCls = "w-20 py-1.5 px-2 outline-none border border-transparent hover:border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 bg-white/60 focus:bg-white rounded-lg font-semibold text-gray-800 text-center transition-all";
+                const residentInputCls = "w-full py-1.5 px-2 outline-none border border-transparent hover:border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 bg-white/60 focus:bg-white rounded-lg font-semibold text-gray-800 text-sm transition-all";
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3.5 align-middle" data-label="Room No">
+                        <div class="flex items-center gap-2">
+                            <strong class="font-black text-gray-900 text-base">Room ${flatNo}</strong>
+                            <span id="draftBadge_${room._id}" class="${isDraft ? '' : 'hidden'} inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 animate-pulse" title="Admin Draft (Unpublished)">
+                                <i class="fa-solid fa-pencil text-[8px]"></i> Draft
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-3 py-3.5 align-middle min-w-[150px]" data-label="Resident">
+                        <input type="text" id="resident_${room._id}" value="${currentResident}" oninput="calcRow('${room._id}')" placeholder="Resident name" class="${residentInputCls}">
+                    </td>
+                    
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Maintenance"><input type="number" id="maint_${room._id}" value="${currentMaint}" oninput="calcRow('${room._id}')" class="${innerInputCls}"></td>
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Festival"><input type="number" id="fest_${room._id}" value="${currentFest}" oninput="calcRow('${room._id}')" class="${innerInputCls}"></td>
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Parking"><input type="number" id="park_${room._id}" value="${currentPark}" oninput="calcRow('${room._id}')" class="${innerInputCls}"></td>
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Others"><input type="number" id="oth_${room._id}" value="${currentOth}" oninput="calcRow('${room._id}')" class="${innerInputCls}"></td>
+
+                    <td class="px-3 py-3.5 align-middle text-center font-black text-[#F97316] text-base" id="total_${room._id}" data-label="Total Amount">₹${total}</td>
+                    
+                    <td class="px-3 py-3.5 align-middle text-center" data-label="Status">
+                        <select id="status_${room._id}" onchange="handleStatusSelect('${room._id}', '${flatNo}', this.value)" class="font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg outline-none cursor-pointer transition-all ${isPaid ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}">
+                            <option value="paid" ${isPaid?'selected':''} class="text-green-700 font-bold bg-white">Paid</option>
+                            <option value="unpaid" ${!isPaid?'selected':''} class="text-red-600 font-bold bg-white">Unpaid</option>
+                        </select>
+                    </td>
+                    
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Due Date">
+                        <div class="flex items-center justify-center">
+                            <input type="text" id="date_${room._id}" value="${currentDueDate}" onchange="calcRow('${room._id}')" class="fp-date w-28 text-[11px] font-bold text-gray-600 outline-none border border-transparent hover:border-gray-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 bg-white/60 focus:bg-white rounded-lg p-1.5 cursor-text text-center tracking-wider transition-all">
+                        </div>
+                    </td>
+
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Notification">
+                        <div id="notifCell_${room._id}" class="flex items-center justify-center">
+                            ${room.notificationStatus === 'Sent' ? `
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 shadow-xs">
+                                    <i class="fa-solid fa-check text-xs"></i> Sent
+                                </span>
+                            ` : `
+                                <button onclick="event.stopPropagation(); openNotifyModal('${flatNo}', '${currentResident}', '${currentDueDate}', ${total});" class="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+                                    <i class="fa-regular fa-paper-plane"></i> Send
+                                </button>
+                            `}
+                        </div>
+                    </td>
+
+                    <td class="px-2 py-3.5 align-middle text-center" data-label="Actions">
+                        <div class="flex items-center justify-center">
+                            <button id="sendBtn_${room._id}" onclick="openSendBillConfirmModal('${room._id}', '${flatNo}'); event.stopPropagation();" title="Save bill" class="text-[10px] font-black uppercase tracking-wider bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl shadow-md shadow-orange-100 hover:-translate-y-0.5 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+                                <i class="fa-solid fa-floppy-disk text-[10px]"></i> Save
+                            </button>
+                        </div>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+
+            // Initialize Flatpickr on dynamic rows
+            flatpickr(".fp-date", { altInput: true, altFormat: "d/m/Y", dateFormat: "Y-m-d" });
+            document.getElementById('roomCountText').textContent = `Tracking ${filtered.length} units`;
+            document.getElementById('paymentsTable').classList.remove('hidden');
+            updateDynamicStats(true);
+        }
+
+        function calcRow(roomId) {
+            const m = Number(document.getElementById(`maint_${roomId}`)?.value) || 0;
+            const f = Number(document.getElementById(`fest_${roomId}`)?.value) || 0;
+            const p = Number(document.getElementById(`park_${roomId}`)?.value) || 0;
+            const o = Number(document.getElementById(`oth_${roomId}`)?.value) || 0;
+            const t = m + f + p + o;
+            
+            const totalEl = document.getElementById(`total_${roomId}`);
+            if (totalEl) totalEl.textContent = `₹${t}`;
+
+            const baseline = roomBaselineMap[roomId];
+            const rowEl = document.getElementById(`row_${roomId}`);
+            const badgeEl = document.getElementById(`draftBadge_${roomId}`);
+            const resVal = document.getElementById(`resident_${roomId}`)?.value?.trim() || '';
+            const dateVal = document.getElementById(`date_${roomId}`)?.value || '';
+
+            if (baseline) {
+                const isModified = (
+                    m !== baseline.maint ||
+                    f !== baseline.fest ||
+                    p !== baseline.park ||
+                    o !== baseline.oth ||
+                    (dateVal && dateVal !== baseline.dueDate) ||
+                    (resVal && resVal !== baseline.resident)
+                );
+
+                if (isModified) {
+                    if (badgeEl) badgeEl.classList.remove('hidden');
+                    if (rowEl) {
+                        rowEl.classList.add('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+                    }
+                    // Save locally in admin draft
+                    const draftData = {
+                        maint: m,
+                        fest: f,
+                        park: p,
+                        oth: o,
+                        total: t,
+                        dueDate: dateVal,
+                        resident: resVal,
+                        isDraft: true
+                    };
+                    localStorage.setItem('maple_admin_draft_' + baseline.flatNo, JSON.stringify(draftData));
+                } else {
+                    const room = roomsData.find(r => r._id === roomId);
+                    if (!room?.hasDraft) {
+                        if (badgeEl) badgeEl.classList.add('hidden');
+                        if (rowEl) {
+                            rowEl.classList.remove('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+                        }
+                        localStorage.removeItem('maple_admin_draft_' + baseline.flatNo);
+                    }
+                }
+            }
+
+            updateDynamicStats(true);
+        }
+
+        // --- NEW MODAL LOGIC ---
+        async function openRoomDetail(room) {
+            const flatNo = room.flat_number || room.roomNumber;
+            currentlySelectedFlat = flatNo;
+            document.getElementById('detailFlatNumber').textContent = flatNo;
+            document.getElementById('detailOwnerName').textContent = `Registered Resident: ${room.resident?.name || 'Owner ' + flatNo}`;
+            document.getElementById('detailStatusBadge').innerHTML = getStatusBadge(room.paymentStatus === 'paid' ? 'Paid' : 'Unpaid');
+            
+            // Format due date to YYYY-MM-DD for the date input
+            const dDate = room.dueDate ? new Date(room.dueDate).toISOString().split('T')[0] : '';
+            document.getElementById('recordDueDate').value = dDate;
+            
+            const c = room.charges || {};
+            const totalAmt = (Number(c.rental)||0) + (Number(c.festival)||0) + (Number(c.parking)||0) + (Number(c.others)||0);
+            document.getElementById('recordAmount').value = totalAmt;
+
+            // Show modal immediately
+            document.getElementById('roomDetailModal').classList.remove('hidden');
+            document.getElementById('roomDetailModal').classList.add('flex');
+
+            // Fetch Resident Profile
+            const profileBox = document.getElementById('residentProfileInfo');
+            profileBox.innerHTML = '<div class="text-gray-300 italic text-xs text-center py-4">Loading...</div>';
+            try {
+                const pr = await fetch(`/api/residents/${flatNo}/profile`);
+                const pData = pr.ok ? await pr.json() : null;
+                const p = pData?.profile;
+                if (pData && (p || pData.email || pData.phone)) {
+                    profileBox.innerHTML = `
+                        <div class="grid grid-cols-[80px_1fr] gap-x-2 gap-y-4">
+                            ${pData.email ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Email</span>
+                            <span class="font-semibold text-gray-800 text-left break-all">${pData.email}</span>` : ''}
+                            
+                            ${pData.phone ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Phone</span>
+                            <span class="font-semibold text-gray-800 text-left">${pData.phone}</span>` : ''}
+                            
+                            ${p?.residents ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center pt-2 border-t border-gray-100 col-span-2"></span>
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Residents</span>
+                            <span class="font-semibold text-gray-800 text-left">${p.residents} people</span>` : ''}
+                            
+                            ${p?.year ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Bought in</span>
+                            <span class="font-semibold text-gray-800 text-left">${p.year}</span>` : ''}
+                            
+                            ${p?.status ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Status</span>
+                            <span class="font-semibold text-gray-800 text-left">${p.status}</span>` : ''}
+                            
+                            ${p?.pets ? `
+                            <span class="text-gray-400 text-xs font-bold whitespace-nowrap flex items-center">Pets</span>
+                            <span class="font-semibold text-gray-800 text-left">${p.pets}</span>` : ''}
+                        </div>
+                    `;
+                } else {
+                    profileBox.innerHTML = '<div class="text-center py-6"><i class="fa-solid fa-user-slash text-gray-200 text-3xl mb-2"></i><p class="text-xs text-gray-300 italic">Resident has not filled their profile yet.</p></div>';
+                }
+            } catch(e) {
+                profileBox.innerHTML = '<div class="text-xs text-red-300 italic text-center py-4">Could not load profile.</div>';
+            }
+
+            // Load History
+            const histBody = document.getElementById('historyTableBody');
+            const hEmpty = document.getElementById('historyEmpty');
+            histBody.innerHTML = '';
+            
+            try {
+                const res = await fetch(`/api/rooms/${flatNo}/history`);
+                const rawHistory = await res.json();
+                const history = Array.isArray(rawHistory) ? rawHistory : (rawHistory?.bills || []);
+                
+                if (!history || history.length === 0) {
+                    hEmpty.classList.remove('hidden');
+                } else {
+                    hEmpty.classList.add('hidden');
+                    history.slice().reverse().forEach(h => {
+                        const m = h.month || h.billing_month || (h.due_date ? new Date(h.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
+                        const amt = h.amount || 0;
+                        const method = h.method || (h.status === 'Paid' ? 'Verified' : 'Pending');
+                        const pDate = h.paidDate || h.paid_at || h.created_at || new Date();
+                        histBody.innerHTML += `
+                            <tr class="text-xs">
+                                <td class="py-4 font-black text-gray-900">${m}</td>
+                                <td class="py-4 font-bold text-orange-600">₹${amt}</td>
+                                <td class="py-4 font-black uppercase text-[9px] tracking-wider ${h.status === 'Paid' || method !== 'Pending' ? 'text-green-600' : 'text-amber-600'}">${method}</td>
+                                <td class="py-4 text-gray-400 text-right font-bold">${new Date(pDate).toLocaleDateString('en-GB')}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (err) { console.error('History load error:', err); hEmpty.classList.remove('hidden'); }
+        }
+
+        async function saveDraftBill(roomId, flatNo) {
+            const btn = document.getElementById(`draftBtn_${roomId}`);
+            const ogHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Saving...';
+            }
+
+            try {
+                const maintenance = Number(document.getElementById(`maint_${roomId}`)?.value) || 0;
+                const festival = Number(document.getElementById(`fest_${roomId}`)?.value) || 0;
+                const parking = Number(document.getElementById(`park_${roomId}`)?.value) || 0;
+                const others = Number(document.getElementById(`oth_${roomId}`)?.value) || 0;
+                const dueDate = document.getElementById(`date_${roomId}`)?.value || '';
+                const residentName = document.getElementById(`resident_${roomId}`)?.value?.trim() || '';
+                const status = document.getElementById(`status_${roomId}`)?.value || 'unpaid';
+
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch(`/api/admin/bills/${roomId}/draft`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        flat_number: flatNo,
+                        maintenance,
+                        festival,
+                        parking,
+                        others,
+                        due_date: dueDate,
+                        resident_name: residentName,
+                        status
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to save draft');
+
+                // Mark badge & row highlight
+                const badgeEl = document.getElementById(`draftBadge_${roomId}`);
+                if (badgeEl) badgeEl.classList.remove('hidden');
+                const rowEl = document.getElementById(`row_${roomId}`);
+                if (rowEl) rowEl.classList.add('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+
+                showToast(`Draft saved for Room ${flatNo} (Admin only)`);
+            } catch (err) {
+                console.error('saveDraftBill error:', err);
+                showToast(err.message || 'Error saving draft', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = ogHtml;
+                }
+            }
+        }
+
+        function openSendBillConfirmModal(roomId, flatNo) {
+            const m = Number(document.getElementById(`maint_${roomId}`)?.value) || 0;
+            const f = Number(document.getElementById(`fest_${roomId}`)?.value) || 0;
+            const p = Number(document.getElementById(`park_${roomId}`)?.value) || 0;
+            const o = Number(document.getElementById(`oth_${roomId}`)?.value) || 0;
+            const total = m + f + p + o;
+            const dueDate = document.getElementById(`date_${roomId}`)?.value || 'End of Month';
+            const residentName = document.getElementById(`resident_${roomId}`)?.value?.trim() || `Owner ${flatNo}`;
+            const status = document.getElementById(`status_${roomId}`)?.value || 'unpaid';
+
+            pendingPublishRoom = {
+                roomId,
+                flatNo,
+                maintenance: m,
+                festival: f,
+                parking: p,
+                others: o,
+                total,
+                dueDate,
+                residentName,
+                status
+            };
+
+            document.getElementById('confirmModalRoomTitle').textContent = `Room ${flatNo} Bill`;
+            document.getElementById('confirmModalResidentName').textContent = `Resident: ${residentName}`;
+            document.getElementById('confirmBreakdownMaint').textContent = `₹${m}`;
+            document.getElementById('confirmBreakdownFest').textContent = `₹${f}`;
+            document.getElementById('confirmBreakdownPark').textContent = `₹${p}`;
+            document.getElementById('confirmBreakdownOth').textContent = `₹${o}`;
+            document.getElementById('confirmBreakdownTotal').textContent = `₹${total}`;
+            
+            const dueFmt = dueDate && dueDate !== 'End of Month' ? new Date(dueDate).toLocaleDateString('en-GB') : dueDate;
+            document.getElementById('confirmBreakdownDueDate').textContent = dueFmt;
+
+            const modal = document.getElementById('sendBillConfirmModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeSendBillConfirmModal() {
+            const modal = document.getElementById('sendBillConfirmModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingPublishRoom = null;
+        }
+
+        async function executePublishAndSend() {
+            if (!pendingPublishRoom) return;
+            const { roomId, flatNo, maintenance, festival, parking, others, total, dueDate, residentName, status } = pendingPublishRoom;
+
+            const btn = document.getElementById('confirmPublishAndSendBtn');
+            const ogText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Saving...';
+
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch(`/api/admin/bills/${roomId}/publish-and-send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        flat_number: flatNo,
+                        maintenance,
+                        festival,
+                        parking,
+                        others,
+                        due_date: dueDate && dueDate !== 'End of Month' ? dueDate : null,
+                        resident_name: residentName,
+                        payment_status: status
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to publish and send bill');
+
+                // Clear local draft for this flat
+                localStorage.removeItem('maple_admin_draft_' + flatNo);
+
+                // Update baseline to committed values
+                if (roomBaselineMap[roomId]) {
+                    roomBaselineMap[roomId].maint = maintenance;
+                    roomBaselineMap[roomId].fest = festival;
+                    roomBaselineMap[roomId].park = parking;
+                    roomBaselineMap[roomId].oth = others;
+                    roomBaselineMap[roomId].dueDate = dueDate;
+                    roomBaselineMap[roomId].resident = residentName;
+                    roomBaselineMap[roomId].status = status;
+                }
+
+                // Clear draft badge and row highlight
+                const badgeEl = document.getElementById(`draftBadge_${roomId}`);
+                if (badgeEl) badgeEl.classList.add('hidden');
+                const rowEl = document.getElementById(`row_${roomId}`);
+                if (rowEl) rowEl.classList.remove('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+
+                // Set notification badge to Sent
+                const notifCell = document.getElementById(`notifCell_${roomId}`);
+                if (notifCell) {
+                    notifCell.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 shadow-xs"><i class="fa-solid fa-check text-xs"></i> Sent</span>`;
+                }
+
+                closeSendBillConfirmModal();
+                showToast(`Bill saved for Room ${flatNo} successfully!`);
+                
+                // Refresh data in background to sync state
+                setTimeout(() => fetchData(true), 1500);
+            } catch (err) {
+                console.error('executePublishAndSend error:', err);
+                showToast(err.message || 'Failed to dispatch bill', true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = ogText;
+            }
+        }
+
+        async function saveAllChanges() {
+            const btn = document.getElementById('saveDueDateBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            try {
+                // Gather inputs
+                const newDate = document.getElementById('recordDueDate').value;
+                const amount = document.getElementById('recordAmount').value;
+
+                const token = sessionStorage.getItem('maple_token');
+                if (!token) throw new Error("No active token. Please log out and back in!");
+
+                const reqHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+
+                const method = document.getElementById('recordMethod')?.value || 'Cash';
+                const resp = await fetch('/api/bills/update-details', {
+                    method: 'POST',
+                    headers: reqHeaders,
+                    body: JSON.stringify({ flat_number: currentlySelectedFlat, amount, due_date: newDate, method })
+                });
+                
+                if (!resp.ok) throw new Error("Server rejected update. Are you logged in?");
+
+                showToast('Bill Details Updated Successfully!');
+                closeDetailModal();
+                fetchData();
+            } catch (err) {
+                console.error(err);
+                showToast(err.message.includes('token') || err.message.includes('logged') ? 'Auth Error! Log back in first' : 'Backend Error! Did you close old terminal?', true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function closeDetailModal() { document.getElementById('roomDetailModal').classList.add('hidden'); document.getElementById('roomDetailModal').classList.remove('flex'); }
+
+        // ===== NOTIFICATION MODAL =====
+        let _notifyRoom = '';
+        function openNotifyModal(flatNo, residentName, dueDate, totalAmt) {
+            _notifyRoom = flatNo;
+            document.getElementById('notifyModalTitle').textContent = `Room ${flatNo} — ${residentName}`;
+            const dueFmt = dueDate ? new Date(dueDate).toLocaleDateString('en-GB') : 'your due date';
+            document.getElementById('notifyMessage').value =
+`Dear ${residentName},
+
+This is a friendly reminder from Maple Apartments Management.
+
+Your maintenance payment of ₹${totalAmt} for Room ${flatNo} is due on ${dueFmt}.
+
+Kindly make the payment at your earliest convenience to avoid a late-payment charge.
+
+Thank you for your cooperation.
+— Maple Apartments Admin`;
+            document.getElementById('notifyModal').classList.remove('hidden');
+            document.getElementById('notifyModal').classList.add('flex');
+        }
+
+        async function handleStatusSelect(roomId, flatNo, status) {
+            const el = document.getElementById(`status_${roomId}`);
+            if (el) {
+                el.className = `font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg outline-none cursor-pointer transition-all ${status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`;
+            }
+            updateDynamicStats(true);
+            await markStatus(flatNo, status);
+        }
+
+        async function markStatus(flatNo, status) {
+            const token = sessionStorage.getItem('maple_token');
+            if(!token) return showToast('Auth Error. Log in again.', true);
+
+            try {
+                const res = await fetch(`/api/admin/rooms/${flatNo}/mark-${status}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Room ${flatNo} marked as ${status.toUpperCase()}!`);
+                    fetchData(true); // reload data
+                } else {
+                    showToast(data.error || 'Failed to update status', true);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network Error', true);
+            }
+        }
+
+        function openNotifyModalFromDetail() {
+            // Find current room data or just use currentlySelectedFlat
+            const room = roomsData.find(r => r.flat_number === currentlySelectedFlat);
+            const residentName = room?.resident?.name || `Owner ${currentlySelectedFlat}`;
+            const totalAmt = document.getElementById('recordAmount').value;
+            const dueDate = document.getElementById('recordDueDate').value;
+            
+            closeDetailModal();
+            openNotifyModal(currentlySelectedFlat, residentName, dueDate, totalAmt);
+        }
+
+        function closeNotifyModal() {
+            document.getElementById('notifyModal').classList.add('hidden');
+            document.getElementById('notifyModal').classList.remove('flex');
+        }
+
+        function sendNotification(channel) {
+            const rawMsg = document.getElementById('notifyMessage').value;
+            const token = sessionStorage.getItem('maple_token');
+
+            if (channel === 'email') {
+                fetch('/api/admin/send-manual-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ flat_number: _notifyRoom, message: rawMsg })
+                }).then(r => {
+                    if (r.ok) {
+                        showToast(`Email reminder sent to Room ${_notifyRoom}!`);
+                        closeNotifyModal();
+                    } else {
+                        showToast('Email failed — check backend config', true);
+                    }
+                }).catch(() => showToast('Network error sending email', true));
+            } else if (channel === 'website') {
+                // Post to website notification system
+                fetch('/api/notifications/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ flat_number: _notifyRoom, message: rawMsg, type: 'reminder' })
+                }).then(r => {
+                    if (r.ok) {
+                        showToast(`In-app reminder sent to Room ${_notifyRoom}!`);
+                        closeNotifyModal();
+                    } else showToast('App notification failed — check backend', true);
+                }).catch(() => showToast('Network error sending notification', true));
+            }
+        }
+
+        // ==========================================
+        // BULK HEADER OPERATIONS LOGIC
+        // ==========================================
+
+        // 1. Bulk Due Date
+        function toggleBulkDueDatePopover(e) {
+            if (e) e.stopPropagation();
+            const popover = document.getElementById('bulkDueDatePopover');
+            if (!popover) return;
+            const isHidden = popover.classList.contains('hidden');
+            if (isHidden) {
+                const firstDate = (roomsData && roomsData[0]?.dueDate)
+                    ? new Date(roomsData[0].dueDate).toISOString().split('T')[0]
+                    : new Date().toISOString().split('T')[0];
+                const input = document.getElementById('bulkDueDateInput');
+                if (input && !input.value) input.value = firstDate;
+                popover.classList.remove('hidden');
+            } else {
+                popover.classList.add('hidden');
+            }
+        }
+
+        function closeBulkDueDatePopover(e) {
+            if (e) e.stopPropagation();
+            const popover = document.getElementById('bulkDueDatePopover');
+            if (popover) popover.classList.add('hidden');
+        }
+
+        async function applyBulkDueDate(e) {
+            if (e) e.stopPropagation();
+            const input = document.getElementById('bulkDueDateInput');
+            const newDate = input?.value;
+            if (!newDate) {
+                return showToast('Please select a valid date first', true);
+            }
+
+            const btn = document.getElementById('applyBulkDueDateBtn');
+            const ogHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i>';
+            }
+
+            try {
+                // Propagate instantly to every row on the screen
+                (roomsData || []).forEach(room => {
+                    const flatNo = room.flat_number || room.roomNumber;
+                    const dateInput = document.getElementById(`date_${room._id}`);
+                    if (dateInput) {
+                        if (dateInput._flatpickr) {
+                            dateInput._flatpickr.setDate(newDate, true);
+                        } else {
+                            dateInput.value = newDate;
+                        }
+                        dateInput.classList.add('ring-2', 'ring-orange-400', 'bg-orange-50');
+                        setTimeout(() => dateInput.classList.remove('ring-2', 'ring-orange-400', 'bg-orange-50'), 1500);
+                    }
+
+                    // Save locally in admin draft
+                    const draftRaw = localStorage.getItem('maple_admin_draft_' + flatNo);
+                    let draftObj = draftRaw ? JSON.parse(draftRaw) : {};
+                    draftObj.dueDate = newDate;
+                    draftObj.isDraft = true;
+                    localStorage.setItem('maple_admin_draft_' + flatNo, JSON.stringify(draftObj));
+
+                    const badge = document.getElementById(`draftBadge_${room._id}`);
+                    if (badge) badge.classList.remove('hidden');
+                    const rowEl = document.getElementById(`row_${room._id}`);
+                    if (rowEl) rowEl.classList.add('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+                });
+
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/admin/bills/bulk-due-date', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        dueDate: newDate,
+                        roomIds: (roomsData || []).map(r => r._id)
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to update due date on server');
+
+                showToast(`Due date ${newDate} applied to all units!`);
+                closeBulkDueDatePopover();
+                updateDynamicStats(true);
+            } catch (err) {
+                console.error('applyBulkDueDate error:', err);
+                showToast(err.message || 'Error updating due date', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = ogHtml;
+                }
+            }
+        }
+
+        // 2. Bulk Notification
+        function openBulkNotifyModal(e) {
+            if (e) e.stopPropagation();
+            const curMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+            document.getElementById('bulkNotifyTitle').value = `Monthly Maintenance Reminder - ${curMonth}`;
+            document.getElementById('bulkNotifyMessage').value =
+`Dear Resident,
+
+This is a friendly reminder from Maple Apartments Management regarding your apartment maintenance dues for ${curMonth}.
+
+Please check your personal resident portal for your detailed bill breakdown, due dates, and digital payment methods.
+
+Thank you for your cooperation!
+— Maple Apartments Management`;
+
+            const modal = document.getElementById('bulkNotifyModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeBulkNotifyModal() {
+            const modal = document.getElementById('bulkNotifyModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        async function executeBulkNotify() {
+            const title = document.getElementById('bulkNotifyTitle').value.trim();
+            const message = document.getElementById('bulkNotifyMessage').value.trim();
+            if (!message) return showToast('Please enter a message note', true);
+
+            const btn = document.getElementById('confirmBulkNotifyBtn');
+            const ogHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Sending to All...';
+            }
+
+            const headerBtn = document.getElementById('bulkNotifyBtn');
+            if (headerBtn) headerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[10px] text-indigo-600"></i><span>Sending...</span>';
+
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/admin/notifications/bulk-send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        title,
+                        message,
+                        targetRooms: 'all'
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to send bulk notification');
+
+                (roomsData || []).forEach(r => {
+                    const notifCell = document.getElementById(`notifCell_${r._id}`);
+                    if (notifCell) {
+                        notifCell.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 shadow-xs"><i class="fa-solid fa-check text-xs"></i> Sent</span>`;
+                    }
+                    r.notificationStatus = 'Sent';
+                });
+
+                closeBulkNotifyModal();
+                showToast('Notification broadcast sent to all residents successfully.');
+            } catch (err) {
+                console.error('executeBulkNotify error:', err);
+                showToast(err.message || 'Error broadcasting notification', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = ogHtml;
+                }
+                if (headerBtn) {
+                    headerBtn.innerHTML = '<i class="fa-regular fa-paper-plane text-[10px] text-indigo-600"></i><span>Send to All</span>';
+                }
+            }
+        }
+
+        // 3. Bulk Save & Publish
+        function openBulkPublishModal(e) {
+            if (e) e.stopPropagation();
+            let totalSum = 0;
+            (roomsData || []).forEach(r => {
+                const data = getRoomCurrentData(r);
+                totalSum += data.total;
+            });
+
+            document.getElementById('bulkPublishRoomCount').textContent = `${(roomsData || []).length} Units`;
+            document.getElementById('bulkPublishTotalAmount').textContent = `₹${totalSum.toLocaleString('en-IN')}`;
+
+            const modal = document.getElementById('bulkPublishModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeBulkPublishModal() {
+            const modal = document.getElementById('bulkPublishModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        async function executeBulkPublish() {
+            const btn = document.getElementById('confirmBulkPublishBtn');
+            const ogHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> Publishing All...';
+            }
+
+            const headerBtn = document.getElementById('bulkPublishBtn');
+            if (headerBtn) headerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[9px]"></i><span>Publishing...</span>';
+
+            try {
+                const payloadBills = (roomsData || []).map(r => {
+                    const flatNo = r.flat_number || r.roomNumber;
+                    const elM = document.getElementById(`maint_${r._id}`);
+                    const elF = document.getElementById(`fest_${r._id}`);
+                    const elP = document.getElementById(`park_${r._id}`);
+                    const elO = document.getElementById(`oth_${r._id}`);
+                    const elD = document.getElementById(`date_${r._id}`);
+                    const elRes = document.getElementById(`resident_${r._id}`);
+                    const elStat = document.getElementById(`status_${r._id}`);
+
+                    const localDraftRaw = localStorage.getItem('maple_admin_draft_' + flatNo);
+                    let ld = null;
+                    if (localDraftRaw) {
+                        try { ld = JSON.parse(localDraftRaw); } catch(e) {}
+                    }
+
+                    const m = elM ? Number(elM.value) || 0 : (ld ? Number(ld.maint) || 0 : (Number(r.charges?.rental) || 0));
+                    const f = elF ? Number(elF.value) || 0 : (ld ? Number(ld.fest) || 0 : (Number(r.charges?.festival) || 0));
+                    const p = elP ? Number(elP.value) || 0 : (ld ? Number(ld.park) || 0 : (Number(r.charges?.parking) || 0));
+                    const o = elO ? Number(elO.value) || 0 : (ld ? Number(ld.oth) || 0 : (Number(r.charges?.others) || 0));
+                    const dDate = elD?.value || ld?.dueDate || (r.dueDate ? new Date(r.dueDate).toISOString().split('T')[0] : '');
+                    const resName = elRes?.value?.trim() || ld?.resident || r.resident?.name || `Owner ${flatNo}`;
+                    const status = elStat?.value || ld?.status || r.paymentStatus || 'unpaid';
+
+                    return {
+                        roomId: r._id,
+                        flat_number: flatNo,
+                        maintenance: m,
+                        festival: f,
+                        parking: p,
+                        others: o,
+                        totalAmount: m + f + p + o,
+                        dueDate: dDate,
+                        resident_name: resName,
+                        payment_status: status
+                    };
+                });
+
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/admin/bills/bulk-publish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ bills: payloadBills })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to bulk publish bills');
+
+                payloadBills.forEach(b => {
+                    localStorage.removeItem('maple_admin_draft_' + b.flat_number);
+                    if (roomBaselineMap[b.roomId]) {
+                        roomBaselineMap[b.roomId].maint = b.maintenance;
+                        roomBaselineMap[b.roomId].fest = b.festival;
+                        roomBaselineMap[b.roomId].park = b.parking;
+                        roomBaselineMap[b.roomId].oth = b.others;
+                        roomBaselineMap[b.roomId].dueDate = b.dueDate;
+                        roomBaselineMap[b.roomId].resident = b.resident_name;
+                        roomBaselineMap[b.roomId].status = b.payment_status;
+                    }
+                    const badgeEl = document.getElementById(`draftBadge_${b.roomId}`);
+                    if (badgeEl) badgeEl.classList.add('hidden');
+                    const rowEl = document.getElementById(`row_${b.roomId}`);
+                    if (rowEl) rowEl.classList.remove('bg-amber-50/25', 'border-l-4', 'border-amber-400');
+
+                    const notifCell = document.getElementById(`notifCell_${b.roomId}`);
+                    if (notifCell) {
+                        notifCell.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 shadow-xs"><i class="fa-solid fa-check text-xs"></i> Sent</span>`;
+                    }
+                });
+
+                closeBulkPublishModal();
+                showToast('All bills have been saved and sent to respective resident dashboards.');
+                updateDynamicStats(true);
+                setTimeout(() => fetchData(true), 1500);
+            } catch (err) {
+                console.error('executeBulkPublish error:', err);
+                showToast(err.message || 'Error publishing bills', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = ogHtml;
+                }
+                if (headerBtn) {
+                    headerBtn.innerHTML = '<i class="fa-solid fa-bolt text-[9px]"></i><span>Save & Publish All</span>';
+                }
+            }
+        }
+
+        // Global click-outside listener to close date picker popover
+        document.addEventListener('click', (e) => {
+            const popover = document.getElementById('bulkDueDatePopover');
+            const btn = document.getElementById('bulkDueDateBtn');
+            if (popover && !popover.classList.contains('hidden')) {
+                if (!popover.contains(e.target) && !btn?.contains(e.target)) {
+                    popover.classList.add('hidden');
+                }
+            }
+        });
+
+        // Help Functions
+        function getStatusBadge(status) {
+            const styles = {
+                Paid: 'bg-green-100 text-green-700',
+                Unpaid: 'bg-red-50 text-red-600',
+                Overdue: 'bg-black text-white ring-2 ring-red-500 animate-pulse',
+                Pending: 'bg-amber-100 text-amber-700'
+            };
+            return `<span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${styles[status] || styles.Pending}">${status}</span>`;
+        }
+
+        const activeStatTimers = {};
+        const activeStatValues = {};
+
+        function animateCount(id, target, immediate = false) {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            target = Math.round(Number(target));
+            if (isNaN(target)) target = 0;
+
+            // Immediately cancel any in-flight animation for this element
+            if (activeStatTimers[id]) {
+                cancelAnimationFrame(activeStatTimers[id]);
+                delete activeStatTimers[id];
+            }
+
+            const currentDisplayed = activeStatValues[id] !== undefined
+                ? activeStatValues[id]
+                : (Number(el.textContent.replace(/[^\d.-]/g, '')) || 0);
+
+            // If already at target value or immediate update requested, set directly to guarantee accuracy
+            if (immediate || currentDisplayed === target) {
+                el.textContent = target;
+                activeStatValues[id] = target;
+                return;
+            }
+
+            const startVal = currentDisplayed;
+            const diff = target - startVal;
+            const duration = 250; // Fast 250ms transition to avoid lagging
+            const startTime = performance.now();
+
+            function step(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // Cubic ease-out
+                const ease = 1 - Math.pow(1 - progress, 3);
+                const val = Math.round(startVal + diff * ease);
+
+                el.textContent = val;
+                activeStatValues[id] = val;
+
+                if (progress < 1) {
+                    activeStatTimers[id] = requestAnimationFrame(step);
+                } else {
+                    el.textContent = target; // Exactly matches target, guaranteed no drift
+                    activeStatValues[id] = target;
+                    delete activeStatTimers[id];
+                }
+            }
+
+            activeStatTimers[id] = requestAnimationFrame(step);
+        }
+
+        function setLoading(isLoading) {
+            const loader = document.getElementById('loadingState');
+            const table = document.getElementById('paymentsTable');
+            if (isLoading) { loader.classList.remove('hidden'); table.classList.add('hidden'); }
+            else { loader.classList.add('hidden'); table.classList.remove('hidden'); }
+        }
+
+        function showToast(msg, isError = false) {
+            toastMsg.textContent = msg; toast.querySelector('div').style.backgroundColor = isError ? '#dc2626' : '#000000';
+            toast.classList.remove('opacity-0', 'translate-y-20'); setTimeout(() => toast.classList.add('opacity-0', 'translate-y-20'), 3000);
+        }
+
+        function closeModal() { document.getElementById('confirmModal').classList.add('hidden'); document.getElementById('confirmModal').classList.remove('flex'); }
+        function openModal() { document.getElementById('confirmModal').classList.remove('hidden'); document.getElementById('confirmModal').classList.add('flex'); }
+
+        // ===== SEND TO ALL =====
+
+
+        // Sidebar and Mobile Drawer Logic
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+
+        function toggleSidebar() {
+            if (window.innerWidth >= 1024) {
+                document.body.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('maple_admin_sidebar_collapsed', document.body.classList.contains('sidebar-collapsed') ? 'true' : 'false');
+            } else {
+                sidebar.classList.toggle('sidebar-open');
+                sidebar.classList.toggle('-translate-x-full');
+                sidebarOverlay.classList.toggle('hidden');
+            }
+        }
+
+        function closeMobileSidebar() {
+            if (window.innerWidth < 1024) {
+                sidebar.classList.remove('sidebar-open');
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
+            }
+        }
+
+        if (menuToggle) menuToggle.addEventListener('click', toggleSidebar);
+        if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
+        if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeMobileSidebar);
+
+        // Auto-close drawer when clicking any sidebar navigation links on mobile
+        document.querySelectorAll('#sidebar nav a').forEach(link => {
+            link.addEventListener('click', closeMobileSidebar);
+        });
+
+        // PWA Installation Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installPwaBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredPrompt = e;
+            // Update UI notify the user they can install the PWA
+            installBtn.classList.remove('hidden');
+
+            installBtn.addEventListener('click', () => {
+                // hide our install button
+                installBtn.classList.add('hidden');
+                // Show the prompt
+                deferredPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    deferredPrompt = null;
+                });
+            });
+        });
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('Maple App installed successfully!');
+            installBtn.classList.add('hidden');
+        });
+
+        // Event Listeners
+        document.getElementById('floorFilter').addEventListener('change', filterAndDisplay);
+        document.getElementById('statusFilter').addEventListener('change', filterAndDisplay);
+        document.getElementById('parkingFilter').addEventListener('change', filterAndDisplay);
+        
+        const bulkBtn = document.getElementById('markAllUnpaidBtn');
+        if (bulkBtn) bulkBtn.addEventListener('click', () => {
+            if (confirm("Are you sure you want to mark ALL residents as Unpaid? This will reset the collection status for the entire building.")) {
+                bulkMarkUnpaid();
+            }
+        });
+
+        async function bulkMarkUnpaid() {
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/admin/bills/mark-all-unpaid', { 
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) { 
+                    showToast('All residents marked as Unpaid successfully!'); 
+                    fetchData(); 
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Bulk update failed', true);
+            }
+        }
+
+        const confirmBulkPaidBtn = document.getElementById('confirmModalBtn');
+        if (confirmBulkPaidBtn) {
+            confirmBulkPaidBtn.addEventListener('click', async () => {
+                closeModal();
+                try {
+                    const token = sessionStorage.getItem('maple_token');
+                    const res = await fetch('/api/admin/bills/mark-all-paid', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        showToast('All 16 rooms marked as Paid successfully!');
+                        fetchData(true);
+                    } else {
+                        showToast('Bulk update failed', true);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast('Bulk update network error', true);
+                }
+            });
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', () => { fetchData(); loadAdminComplaints(); loadAllPaymentsHistory(); });
+        
+        async function loadAdminComplaints(isAuto = false) {
+            const tbody = document.getElementById('adminComplaintsBody');
+            if (!isAuto) tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading complaints...</td></tr>';
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/admin/complaints', { headers:{ 'Authorization': `Bearer ${token}` }});
+                if (!res.ok) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400 font-bold italic">No active complaints found in the system.</td></tr>';
+                    return;
+                }
+                const complaints = await res.json();
+                
+                if(!Array.isArray(complaints) || complaints.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400 font-bold italic">No active complaints found in the system.</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                complaints.forEach(c => {
+                    const statusColor = c.status === 'Resolved' ? '#065f46' : c.status === 'In Progress' ? '#92400e' : '#374151';
+                    const statusBg = c.status === 'Resolved' ? '#d1fae5' : c.status === 'In Progress' ? '#fef3c7' : '#f3f4f6';
+                    
+                    const tr = document.createElement('tr');
+                    tr.style.opacity = c.status === 'Resolved' ? '0.6' : '1';
+                    tr.style.transition = 'opacity 0.2s';
+                    tr.innerHTML = `
+                        <td class="px-6 py-5 text-gray-400 text-xs">${new Date(c.createdAt).toLocaleDateString('en-GB')}<br/>${new Date(c.createdAt).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td class="px-6 py-5"><strong class="text-orange-600 text-lg">${c.flat_number}</strong><br/><span class="text-xs text-gray-400">${c.owner_name||'Resident'}</span></td>
+                        <td class="px-6 py-5">
+                            <span class="inline-block px-3 py-1 bg-gray-900 border border-gray-700 text-white rounded-full text-[9px] font-black tracking-widest uppercase mb-1">${c.category}</span>
+                            <p class="font-bold text-gray-900">${c.subject}</p>
+                            <p class="text-xs text-gray-500 max-w-sm truncate whitespace-normal">${c.description}</p>
+                        </td>
+                        <td class="px-6 py-5 align-middle">
+                            <div class="flex items-center gap-3">
+                                <select onchange="updateComplaintStatus('${c._id}', this.value)" style="background:${statusBg};color:${statusColor};" class="hover:scale-105 transition-transform px-3 py-2 border-none rounded-xl text-xs font-black uppercase tracking-wider outline-none cursor-pointer shadow-sm">
+                                    <option value="Pending" ${c.status==='Pending'?'selected':''}>Pending</option>
+                                    <option value="In Progress" ${c.status==='In Progress'?'selected':''}>In Progress</option>
+                                    <option value="Resolved" ${c.status==='Resolved'?'selected':''}>Resolved</option>
+                                </select>
+                                <button onclick="deleteComplaint('${c._id}')" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete Complaint">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch(e) { console.error(e); tbody.innerHTML='<tr><td colspan="4" class="text-center text-red-500 py-8">Failed to fetch complaints</td></tr>'; }
+        }
+
+        async function updateComplaintStatus(id, status) {
+            const token = sessionStorage.getItem('maple_token');
+            const res = await fetch(`/api/admin/complaints/${id}`, { 
+                method: 'PATCH', 
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+                body: JSON.stringify({ status }) 
+            });
+            if (res.ok) {
+                showToast('Status shifted to ' + status);
+                loadAdminComplaints();
+            } else { showToast('Failed to update status', true); }
+        }
+
+        async function deleteComplaint(id) {
+            if (!confirm('Are you sure you want to permanently delete this complaint?')) return;
+            const token = sessionStorage.getItem('maple_token');
+            const res = await fetch(`/api/admin/complaints/${id}`, { 
+                method: 'DELETE', 
+                headers: { 'Authorization': `Bearer ${token}` } 
+            });
+            if (res.ok) {
+                showToast('Complaint removed');
+                loadAdminComplaints();
+            } else { showToast('Failed to delete', true); }
+        }
+
+        setTimeout(() => loadAdminComplaints(), 500);
+        
+        // Initialize global static Flatpickr inputs (like modals)
+        flatpickr(".fp-date", { altInput: true, altFormat: "d/m/Y", dateFormat: "Y-m-d" });
+
+        // ==========================================
+        // ALL RESIDENT PAYMENT HISTORY & RECEIPTS
+        // ==========================================
+        window.allAdminPayments = [];
+        window._adminReceiptsMap = {};
+
+        function scrollToPaymentHistory(e) {
+            if (e) e.preventDefault();
+            const box = document.getElementById('paymentHistoryBox');
+            if (box) {
+                box.scrollIntoView({ behavior: 'smooth' });
+                box.style.transition = 'box-shadow 0.3s ease';
+                box.style.boxShadow = '0 0 0 3px rgba(249, 115, 22, 0.4)';
+                setTimeout(() => { box.style.boxShadow = ''; }, 2000);
+            }
+        }
+
+        async function loadAllPaymentsHistory(isAuto = false) {
+            const tbody = document.getElementById('allPaymentsTableBody');
+            if (!tbody) return;
+            if (!isAuto && window.allAdminPayments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading payment history...</td></tr>';
+            }
+
+            try {
+                const token = sessionStorage.getItem('maple_token');
+                const res = await fetch('/api/payments/all', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (!res.ok) {
+                    if (!isAuto && window.allAdminPayments.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400 font-bold italic">No payments recorded yet.</td></tr>';
+                    }
+                    return;
+                }
+                const data = await res.json();
+                const payments = data.payments || [];
+                window.allAdminPayments = payments;
+
+                // Cache receipts for instant view/download
+                payments.forEach(p => {
+                    const key = (p._id || p.razorpay_payment_id || p.utr_number || '').toString();
+                    window._adminReceiptsMap[key] = p;
+                    if (p.razorpay_payment_id) window._adminReceiptsMap[p.razorpay_payment_id] = p;
+                });
+
+                // Update Summary Cards
+                const totalAmount = data.totalAmount !== undefined ? data.totalAmount : payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const razorpayTotal = data.razorpayTotal !== undefined ? data.razorpayTotal : payments.filter(p => (p.transfer_mode || '').toLowerCase().includes('razorpay')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const count = data.totalCount !== undefined ? data.totalCount : payments.length;
+                const rzpCount = data.razorpayCount !== undefined ? data.razorpayCount : payments.filter(p => (p.transfer_mode || '').toLowerCase().includes('razorpay')).length;
+                const onlinePct = count > 0 ? Math.round((rzpCount / count) * 100) : 0;
+
+                const elBadge = document.getElementById('histBadgeCount');
+                const elTotal = document.getElementById('histTotalCollected');
+                const elRzpTotal = document.getElementById('histRazorpayTotal');
+                const elTxns = document.getElementById('histTotalTxns');
+                const elOnlinePct = document.getElementById('histOnlinePct');
+
+                if (elBadge) elBadge.textContent = `${count} Payment${count === 1 ? '' : 's'}`;
+                if (elTotal) elTotal.textContent = `₹${totalAmount.toLocaleString('en-IN')}`;
+                if (elRzpTotal) elRzpTotal.textContent = `₹${razorpayTotal.toLocaleString('en-IN')}`;
+                if (elTxns) elTxns.textContent = count.toString();
+                if (elOnlinePct) elOnlinePct.textContent = `${onlinePct}%`;
+
+                filterPaymentHistory();
+            } catch (err) {
+                console.error('Failed to load payment history:', err);
+                if (!isAuto && window.allAdminPayments.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-semibold">Failed to fetch payment history.</td></tr>';
+                }
+            }
+        }
+
+        function filterPaymentHistory() {
+            const searchInput = document.getElementById('histSearchInput');
+            const methodSelect = document.getElementById('histMethodFilter');
+            const q = (searchInput?.value || '').trim().toLowerCase();
+            const method = methodSelect?.value || 'All';
+
+            let filtered = window.allAdminPayments || [];
+
+            if (q) {
+                filtered = filtered.filter(p => {
+                    const flat = (p.flat_number || '').toString().toLowerCase();
+                    const name = (p.resident_name || '').toString().toLowerCase();
+                    const ref = (p.razorpay_payment_id || p.utr_number || p.razorpay_order_id || '').toString().toLowerCase();
+                    const month = (p.month || '').toString().toLowerCase();
+                    return flat.includes(q) || name.includes(q) || ref.includes(q) || month.includes(q);
+                });
+            }
+
+            if (method !== 'All') {
+                filtered = filtered.filter(p => {
+                    const mode = (p.transfer_mode || '').toLowerCase();
+                    if (method === 'Razorpay') return mode.includes('razorpay');
+                    if (method === 'UPI') return mode.includes('upi');
+                    if (method === 'IMPS') return mode.includes('imps') || mode.includes('neft') || mode.includes('bank');
+                    if (method === 'Cash') return mode.includes('cash');
+                    return true;
+                });
+            }
+
+            renderPaymentHistoryTable(filtered);
+        }
+
+        function renderPaymentHistoryTable(items) {
+            const tbody = document.getElementById('allPaymentsTableBody');
+            if (!tbody) return;
+
+            if (!items || items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-400 font-bold italic"><i class="fa-solid fa-receipt text-3xl mb-2 block text-gray-200"></i>No payment records found matching your filter.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            items.forEach(p => {
+                const isRazorpay = (p.transfer_mode || '').toLowerCase().includes('razorpay');
+                const badgeBg = isRazorpay ? '#fff7ed' : '#f0fdf4';
+                const badgeColor = isRazorpay ? '#ea580c' : '#166534';
+                const badgeBorder = isRazorpay ? '#fdba74' : '#bbf7d0';
+                const methodIcon = isRazorpay ? 'fa-credit-card' : 'fa-building-columns';
+                const refId = p.razorpay_payment_id || p.utr_number || (p._id ? `TXN-${p._id.toString().slice(-6).toUpperCase()}` : 'VERIFIED');
+                const dateObj = p.date ? new Date(p.date) : new Date();
+                const dateStr = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                const timeStr = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/70 transition-colors';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-xs text-gray-500 font-semibold">
+                        <div>${dateStr}</div>
+                        <div class="text-[10px] text-gray-400 font-normal">${timeStr}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-orange-100 text-orange-700">
+                            Room ${p.flat_number}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-gray-900 text-sm">${p.resident_name || `Resident ${p.flat_number}`}</div>
+                        <div class="text-xs text-gray-400 font-normal">${p.resident_phone || p.resident_email || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 font-bold text-gray-700 text-xs">
+                        ${p.month || 'Current Cycle'}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-base font-black text-orange-600">₹${Number(p.amount || 0).toLocaleString('en-IN')}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col gap-1">
+                            <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder};" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider w-max">
+                                <i class="fa-solid ${methodIcon}"></i> ${p.transfer_mode || 'Razorpay'}
+                            </span>
+                            <code class="text-[11px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded w-max">${refId}</code>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-100 text-green-700">
+                            <i class="fa-solid fa-circle-check text-[9px]"></i> SUCCESS
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="window.viewAdminReceipt('${p._id || refId}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-orange-200 hover:-translate-y-0.5 cursor-pointer ml-auto">
+                            <i class="fa-solid fa-receipt text-[11px]"></i> Receipt
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.viewAdminReceipt = function(refId) {
+            const payment = window._adminReceiptsMap ? window._adminReceiptsMap[refId] : null;
+            if (!payment) {
+                showToast('Receipt details not found', true);
+                return;
+            }
+
+            const printWin = window.open('', '_blank', 'width=750,height=850');
+            if (!printWin) {
+                alert('Please allow pop-ups to view and print the receipt.');
+                return;
+            }
+
+            const formattedDate = payment.date ? new Date(payment.date).toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            }) : new Date().toLocaleDateString('en-IN');
+
+            const maint = payment.breakdown?.maintenance || payment.amount || 2500;
+            const fest = payment.breakdown?.festival || 0;
+            const park = payment.breakdown?.parking || 0;
+            const oth = payment.breakdown?.others || 0;
+            const receiptNum = payment.razorpay_payment_id || payment.utr_number || (payment._id ? `RCPT-${payment.flat_number}-${payment._id.toString().slice(-6).toUpperCase()}` : `RCPT-${payment.flat_number}`);
+
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Receipt-${receiptNum} - Maple Apartments</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 40px; color: #1f2937; margin: 0; background: #fff; }
+                        .receipt-container { max-width: 650px; margin: 0 auto; border: 1.5px solid #e5e7eb; border-radius: 16px; padding: 36px; box-shadow: 0 10px 25px rgba(0,0,0,0.06); }
+                        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f97316; padding-bottom: 20px; margin-bottom: 24px; }
+                        .brand h1 { margin: 0; color: #f97316; font-size: 26px; font-weight: 800; }
+                        .brand p { margin: 4px 0 0; color: #6b7280; font-size: 13px; }
+                        .meta { text-align: right; }
+                        .meta .rec-id { font-size: 14px; font-weight: 700; color: #111827; }
+                        .meta .rec-date { font-size: 12px; color: #6b7280; margin-top: 4px; }
+                        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; background: #f9fafb; padding: 18px; border-radius: 10px; }
+                        .details-col h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.5px; }
+                        .details-col p { margin: 0; font-size: 14px; font-weight: 700; color: #1f2937; }
+                        .details-col span { display: block; font-size: 12px; color: #6b7280; margin-top: 2px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+                        th { text-align: left; padding: 10px 12px; background: #f3f4f6; font-size: 12px; text-transform: uppercase; color: #4b5563; }
+                        td { padding: 12px; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+                        .total-row td { font-weight: 800; font-size: 16px; color: #111827; border-top: 2px solid #e5e7eb; border-bottom: none; }
+                        .stamp-row { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 16px; border-top: 1px dashed #d1d5db; }
+                        .paid-badge { display: inline-flex; align-items: center; gap: 6px; background: #dcfce7; color: #15803d; border: 1.5px solid #86efac; padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 13px; letter-spacing: 0.5px; }
+                        .ref-info { font-size: 12px; color: #6b7280; }
+                        .footer { text-align: center; margin-top: 32px; font-size: 11px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 14px; }
+                        .actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; }
+                        .btn { padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; border: none; }
+                        .btn-print { background: #f97316; color: white; box-shadow: 0 4px 12px rgba(249,115,22,0.3); }
+                        @media print {
+                            .no-print { display: none !important; }
+                            body { padding: 0; }
+                            .receipt-container { box-shadow: none; border: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="no-print actions">
+                        <button class="btn btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+                    </div>
+                    <div class="receipt-container">
+                        <div class="header">
+                            <div class="brand">
+                                <h1>Maple Apartments</h1>
+                                <p>Official Rent & Maintenance Receipt (Admin Copy)</p>
+                            </div>
+                            <div class="meta">
+                                <div class="rec-id">Receipt #${receiptNum}</div>
+                                <div class="rec-date">Date: ${formattedDate}</div>
+                            </div>
+                        </div>
+
+                        <div class="details-grid">
+                            <div class="details-col">
+                                <h4>Resident Details</h4>
+                                <p>${payment.resident_name || `Resident Flat ${payment.flat_number}`}</p>
+                                <span>Room / Flat: <strong>Flat ${payment.flat_number}</strong></span>
+                                ${payment.residentPhone ? `<span>Phone: ${payment.residentPhone}</span>` : ''}
+                                ${payment.residentEmail ? `<span>Email: ${payment.residentEmail}</span>` : ''}
+                            </div>
+                            <div class="details-col">
+                                <h4>Payment Details</h4>
+                                <p>Billing Month: ${payment.month || 'Current Cycle'}</p>
+                                <span>Payment Mode: <strong>${payment.transfer_mode || 'Razorpay Online'}</strong></span>
+                                <span>Ref / Txn ID: <code style="background:#e5e7eb;padding:1px 4px;border-radius:4px;">${payment.razorpay_payment_id || payment.utr_number || 'Verified'}</code></span>
+                            </div>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th style="text-align: right;">Amount (INR)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Apartment Monthly Maintenance Charge</td>
+                                    <td style="text-align: right;">₹${maint}</td>
+                                </tr>
+                                ${fest > 0 ? `<tr><td>Festival Fund Contribution</td><td style="text-align: right;">₹${fest}</td></tr>` : ''}
+                                ${park > 0 ? `<tr><td>Parking Space Maintenance</td><td style="text-align: right;">₹${park}</td></tr>` : ''}
+                                ${oth > 0 ? `<tr><td>Other Amenities & Utility Charges</td><td style="text-align: right;">₹${oth}</td></tr>` : ''}
+                                <tr class="total-row">
+                                    <td>Total Paid</td>
+                                    <td style="text-align: right; color: #ea580c;">₹${payment.amount}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="stamp-row">
+                            <div class="paid-badge">✓ PAYMENT VERIFIED & SETTLED</div>
+                            <div class="ref-info">Maple BMS Cryptographic Audit Log</div>
+                        </div>
+
+                        <div class="footer">
+                            This is an electronically generated official tax and maintenance receipt issued by Maple Apartments Management Committee.
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        };
+
+    </script>
+</body>
+</html>
