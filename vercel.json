@@ -5,6 +5,6 @@
     { "source": "/admin", "destination": "/admin-dashboard.html" },
     { "source": "/dashboard", "destination": "/user-dashboard.html" },
     { "source": "/login", "destination": "/index.html" },
-    { "source": "/api/(.*)", "destination": "/api/index.js" }
+    { "source": "/api/(.*)", "destination": "/api" }
   ]
 }

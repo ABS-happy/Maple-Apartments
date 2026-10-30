@@ -18,6 +18,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// URL path normalizer for serverless environments (e.g. Vercel rewrites)
+app.use((req, res, next) => {
+    if (!req.url.startsWith('/api') && !req.url.startsWith('/public') && !req.url.includes('.')) {
+        req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+    }
+    next();
+});
+
 // Connect to MongoDB
 connectToDatabase()
     .then(() => console.log('✅ Connected to MongoDB successfully'))
