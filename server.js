@@ -5,9 +5,9 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const { connectToDatabase, User, Bill, NotificationLog, Invite, Payment } = require('./api/lib/mongodb');
-const { authenticateToken } = require('./api/lib/auth');
-const { sendNotificationEmail } = require('./api/lib/mailer');
+const { connectToDatabase, User, Bill, NotificationLog, Invite, Payment } = require('./server/api/lib/mongodb');
+const { authenticateToken } = require('./server/api/lib/auth');
+const { sendNotificationEmail } = require('./server/api/lib/mailer');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -28,15 +28,15 @@ connectToDatabase()
 // -------------------------------------------------------------
 
 // 1. Auth & Registration
-const loginHandler = require('./api/login');
-const registerHandler = require('./api/register');
-const resetPasswordHandler = require('./api/reset-password');
-const verifyUtrHandler = require('./api/verify-utr');
-const billsHandler = require('./api/bills');
-const complaintsHandler = require('./api/complaints');
-const notificationsHandler = require('./api/notifications');
-const remindersHandler = require('./api/reminders');
-const rentHandler = require('./api/rent');
+const loginHandler = require('./server/api/login');
+const registerHandler = require('./server/api/register');
+const resetPasswordHandler = require('./server/api/reset-password');
+const verifyUtrHandler = require('./server/api/verify-utr');
+const billsHandler = require('./server/api/bills');
+const complaintsHandler = require('./server/api/complaints');
+const notificationsHandler = require('./server/api/notifications');
+const remindersHandler = require('./server/api/reminders');
+const rentHandler = require('./server/api/rent');
 
 app.post('/api/login', (req, res) => loginHandler(req, res));
 
@@ -121,7 +121,7 @@ const overviewController = require('./server/controllers/overviewController');
 app.get('/api/overview/rooms', (req, res) => overviewController.getOverview(req, res));
 app.get('/api/rooms', (req, res) => {
     if (req.query.flat_number) {
-        return require('./api/rooms')(req, res);
+        return require('./server/api/rooms')(req, res);
     }
     return overviewController.getOverview(req, res);
 });

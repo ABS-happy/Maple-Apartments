@@ -4,7 +4,7 @@
  * To add SMS: replace the placeholder sendSMS() function with your gateway SDK call.
  */
 
-const { User } = require('../../api/lib/mongodb');
+const { User } = require('../api/lib/mongodb');
 const Notification = require('../models/Notification');
 
 // Mock SMS Sender

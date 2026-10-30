@@ -1,5 +1,5 @@
 const Room = require('../models/Room');
-const { Bill } = require('../../api/lib/mongodb');
+const { Bill } = require('../api/lib/mongodb');
 
 const getOverview = async (req, res) => {
     try {
