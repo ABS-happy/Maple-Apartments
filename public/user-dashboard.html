@@ -403,22 +403,17 @@
                                     <td data-label="Others">₹${bill.others || 0}</td>
                                     <td data-label="Total Amount"><strong style="color: #f97316; font-size: 1.05rem;">₹${bill.amount}</strong></td>
                                     <td data-label="Due Date"><strong>${dueFmt}</strong></td>
-                                    <td data-label="Status / Action" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                        <span class="badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}" style="margin-right: auto;">${isPaid ? 'Paid' : 'Unpaid'}</span>
+                                    <td data-label="Status / Action" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; white-space: nowrap;">
+                                        <span class="badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}" style="margin-right: 4px;">${isPaid ? 'Paid' : 'Unpaid'}</span>
                                         ${isUnpaid ? `
-                                            <button class="btn-sm btn-primary" style="padding: 6px 14px; border-radius: 6px; border: none; background: #f97316; color: white; cursor: pointer; font-weight: 700; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Pay securely with Razorpay Test Mode">
+                                            <button class="btn-sm btn-primary" style="padding: 7px 16px; border-radius: 8px; border: none; background: #f97316; color: white; cursor: pointer; font-weight: 700; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Pay securely with Razorpay Test Mode">
                                                 <i class="fa-solid fa-credit-card"></i> Pay Now
                                             </button>
-                                            <button class="btn-sm" style="padding: 5px 10px; border-radius: 6px; border: 1px solid #d1d5db; background: #f9fafb; color: #4b5563; cursor: pointer; font-weight: 600; font-size: 0.78rem;" onclick="window.openPaymentModal('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Manual Bank Transfer (NEFT/RTGS/IMPS)">
-                                                UTR
-                                            </button>
                                         ` : `
-                                            <button class="btn-sm" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #10b981; background: #ecfdf5; color: #047857; cursor: pointer; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(16,185,129,0.2); transition: all 0.15s;" onclick="window.downloadBillReceipt('${bill._id}', '${billingMonth}')" title="Download or print official rent receipt">
+                                            <button class="btn-sm" style="padding: 7px 14px; border-radius: 8px; border: 1px solid #10b981; background: #ecfdf5; color: #047857; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(16,185,129,0.2); transition: all 0.15s;" onclick="window.downloadBillReceipt('${bill._id}', '${billingMonth}')" title="Download or print official rent receipt">
                                                 <i class="fa-solid fa-download"></i> Download Receipt
                                             </button>
                                         `}
-                                        <button onclick="archiveBill('${bill._id}')" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #d1d5db; background: white; color: #4b5563; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" title="Archive Bill"><i class="fa-solid fa-box-archive text-xs"></i></button>
-                                        <button onclick="deleteBill('${bill._id}')" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'" title="Delete Bill"><i class="fa-solid fa-trash-can text-xs"></i></button>
                                     </td>
                                 `;
                                 tbody.appendChild(tr);
