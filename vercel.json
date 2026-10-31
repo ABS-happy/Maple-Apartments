@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "cleanUrls": true,
   "rewrites": [
     { "source": "/admin", "destination": "/admin-dashboard.html" },
+    { "source": "/admin-dashboard", "destination": "/admin-dashboard.html" },
     { "source": "/dashboard", "destination": "/user-dashboard.html" },
+    { "source": "/user-dashboard", "destination": "/user-dashboard.html" },
     { "source": "/login", "destination": "/index.html" },
     { "source": "/api/(.*)", "destination": "/api" }
   ]
