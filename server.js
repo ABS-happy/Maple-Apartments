@@ -140,58 +140,60 @@ app.put('/api/rooms/:roomId', (req, res) => overviewController.updateRoom(req, r
 app.get('/api/rooms/:flatNo/history', async (req, res) => {
     try {
         const { flatNo } = req.params;
-        const bills = await Bill.find({ flat_number: flatNo }).sort({ created_at: -1 }).lean();
-        const payments = await Payment.find({ flat_number: flatNo }).sort({ created_at: -1 }).lean();
+        const bills = await Bill.find({ flat_number: flatNo, status: 'Paid' }).sort({ paid_at: -1, created_at: -1 }).lean();
+        const payments = await Payment.find({ flat_number: flatNo, status: { $in: ['PAID', 'Verified', 'Paid'] } }).sort({ verified_at: -1, created_at: -1 }).lean();
 
         const historyItems = [];
 
-        // 1. Add recorded payments
+        // 1. Add verified recorded payments
         payments.forEach(p => {
             const bill = bills.find(b => b._id && b._id.toString() === (p.bill_id ? p.bill_id.toString() : ''));
-            const month = bill?.month || bill?.billing_month || (p.verified_at ? new Date(p.verified_at).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
+            const month = p.month || bill?.month || bill?.billing_month || (p.verified_at ? new Date(p.verified_at).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
             historyItems.push({
                 month,
                 amount: p.amount,
-                method: p.transfer_mode || 'Bank Transfer',
+                method: p.transfer_mode || 'Razorpay',
                 paidDate: p.verified_at || p.created_at,
                 status: 'Paid',
                 flat_number: flatNo,
-                utr_number: p.utr_number
+                razorpay_payment_id: p.razorpay_payment_id || '',
+                razorpay_order_id: p.razorpay_order_id || ''
             });
         });
 
         // 2. Add paid bills that don't have separate payment records
-        bills.filter(b => b.status === 'Paid').forEach(b => {
+        bills.forEach(b => {
             const hasPayment = payments.some(p => p.bill_id && p.bill_id.toString() === b._id.toString());
             if (!hasPayment) {
                 const month = b.month || b.billing_month || (b.due_date ? new Date(b.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
                 historyItems.push({
                     month,
                     amount: b.amount,
-                    method: 'Bank Transfer',
+                    method: b.paymentId ? 'Razorpay' : 'Bank / Admin Verified',
                     paidDate: b.paid_at || b.due_date || b.created_at,
                     status: 'Paid',
-                    flat_number: flatNo
+                    flat_number: flatNo,
+                    razorpay_payment_id: b.paymentId || ''
                 });
             }
         });
 
-        // 3. If no paid history yet, include active/latest bill as pending item
-        if (historyItems.length === 0 && bills.length > 0) {
-            const b = bills[0];
-            const month = b.month || b.billing_month || (b.due_date ? new Date(b.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
-            historyItems.push({
-                month,
-                amount: b.amount,
-                method: b.status === 'Paid' ? 'Paid' : 'Pending',
-                paidDate: b.paid_at || b.due_date || b.created_at,
-                status: b.status || 'Unpaid',
-                flat_number: flatNo
-            });
-        }
+        // Sort latest first
+        historyItems.sort((a, b) => new Date(b.paidDate || 0) - new Date(a.paidDate || 0));
 
-        // Return array of history items directly so history.reverse().forEach works across all pages
-        res.json(historyItems);
+        // Deduplicate: strictly 1 receipt per billing month
+        const deduped = [];
+        const seen = new Set();
+        historyItems.forEach(item => {
+            const key = (item.month || 'Current').trim().toLowerCase().replace(/\s+/g, '_');
+            if (!seen.has(key)) {
+                seen.add(key);
+                deduped.push(item);
+            }
+        });
+
+        // If no verified payment done yet, returns clean empty array []
+        res.json(deduped);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

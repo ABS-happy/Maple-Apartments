@@ -109,19 +109,8 @@ async function createOrder(req, res) {
             }
         }
 
-        // 4. Save initial pending Payment log in database
-        const paymentRecord = new Payment({
-            bill_id: bill ? bill._id : undefined,
-            flat_number: flatNo,
-            amount: amountInRupees,
-            month: month || bill?.month || new Date().toLocaleString('en-US', { month: 'long' }),
-            year: Number(year) || new Date().getFullYear(),
-            transfer_mode: 'Razorpay',
-            razorpay_order_id: order.id,
-            status: 'Pending',
-            created_at: new Date()
-        });
-        await paymentRecord.save();
+        // Payment record is intentionally NOT created as Pending here
+        // It is strictly created and saved upon verified payment in verifyPayment
 
         const residentName = user?.owner_name || user?.resident?.name || `Resident ${flatNo}`;
         const residentEmail = user?.email || user?.resident?.email || '';
@@ -145,7 +134,7 @@ async function createOrder(req, res) {
             amountInRupees: amountInRupees,
             currency: order.currency,
             keyId: getKeyId() || 'rzp_test_T7SOBhHsCvrWoC',
-            paymentRecordId: paymentRecord._id,
+            billId: bill?._id?.toString() || "",
             receipt: order.receipt,
             flatNumber: flatNo,
             resident: {
@@ -241,9 +230,15 @@ async function verifyPayment(req, res) {
         const targetFlat = flatId || flat_number || roomId || room_id || payment?.flat_number;
         const targetBillId = billId || bill_id || payment?.bill_id;
 
-        // 3. Update Payment record to 'PAID'
+        // 3. Save official Payment record strictly as 'PAID'
+        const billRec = targetBillId ? await Bill.findById(targetBillId) : null;
+        const paidAmount = Number(billRec?.amount) || 2700;
+        const paidMonth = billRec?.month || billRec?.billing_month || (month ? month : new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
+
         if (payment) {
             payment.status = 'PAID';
+            payment.amount = paidAmount;
+            payment.month = paidMonth;
             payment.razorpay_payment_id = razorpay_payment_id;
             payment.razorpay_signature = razorpay_signature;
             payment.verified_at = new Date();
@@ -252,13 +247,16 @@ async function verifyPayment(req, res) {
             payment = new Payment({
                 flat_number: targetFlat || 'Unknown',
                 bill_id: targetBillId,
-                amount: 2500,
+                amount: paidAmount,
+                month: paidMonth,
+                year: new Date().getFullYear(),
                 transfer_mode: 'Razorpay',
                 razorpay_order_id,
                 razorpay_payment_id,
                 razorpay_signature,
                 status: 'PAID',
-                verified_at: new Date()
+                verified_at: new Date(),
+                created_at: new Date()
             });
             await payment.save();
         }
@@ -536,8 +534,10 @@ async function getAllPaymentsHistory(req, res) {
             };
         });
 
-        // 2. Fetch all payments from Payment collection
-        const payments = await Payment.find().sort({ created_at: -1, verified_at: -1 }).lean();
+        // 2. Fetch strictly verified PAID payments from Payment collection
+        const payments = await Payment.find({
+            status: { $in: ['PAID', 'Verified', 'Paid'] }
+        }).sort({ verified_at: -1, created_at: -1 }).lean();
 
         // 3. Fetch paid bills
         const paidBills = await Bill.find({ status: 'Paid' }).lean();
@@ -618,22 +618,33 @@ async function getAllPaymentsHistory(req, res) {
         });
 
         // Chronological order: latest payments first
-        historyList.sort((a, b) => new Date(b.date) - new Date(a.date));
+        historyList.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-        // Quick aggregate statistics
-        const totalAmount = historyList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-        const razorpayTotal = historyList
+        // Deduplicate: strictly 1 receipt per flat per billing month (keep latest verified payment)
+        const dedupedMap = new Map();
+        historyList.forEach(item => {
+            const mKey = (item.month || 'Current').trim().toLowerCase().replace(/\s+/g, '_');
+            const key = `${item.flat_number}_${mKey}`;
+            if (!dedupedMap.has(key)) {
+                dedupedMap.set(key, item);
+            }
+        });
+        const finalHistoryList = Array.from(dedupedMap.values());
+
+        // Quick aggregate statistics from verified deduplicated payments
+        const totalAmount = finalHistoryList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+        const razorpayTotal = finalHistoryList
             .filter(item => (item.transfer_mode || '').toLowerCase() === 'razorpay')
             .reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-        const razorpayCount = historyList.filter(item => (item.transfer_mode || '').toLowerCase() === 'razorpay').length;
+        const razorpayCount = finalHistoryList.filter(item => (item.transfer_mode || '').toLowerCase() === 'razorpay').length;
 
         res.json({
             success: true,
-            totalCount: historyList.length,
+            totalCount: finalHistoryList.length,
             totalAmount,
             razorpayCount,
             razorpayTotal,
-            payments: historyList
+            payments: finalHistoryList
         });
     } catch (err) {
         console.error('Error fetching all payments history:', err);
