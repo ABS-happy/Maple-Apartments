@@ -166,21 +166,37 @@ window.addEventListener('appinstalled', () => {
 });
 
 window.downloadWebAppDirect = function() {
-    // 1. If native PWA browser install prompt is available (Chrome, Edge, Android), trigger it
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // 1. If native PWA browser install prompt is available (Chrome, Edge, Samsung Internet), trigger it
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
         deferredInstallPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === 'accepted') {
                 console.log('[PWA] User accepted installation prompt');
-                showDownloadToast('🎉 WebApp installation started!');
+                showDownloadToast('🎉 Maple Apartments WebApp installing to Home Screen!');
             }
             deferredInstallPrompt = null;
-        }).catch(() => {});
+        }).catch((err) => {
+            console.error('[PWA] Install prompt error:', err);
+        });
+        return;
     }
 
-    // 2. Direct instant download of the desktop launcher shortcut (.url)
+    // 2. On Mobile, guide the resident clearly instead of downloading invalid .url files
+    if (isMobile) {
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isIOS) {
+            alert('To Install Maple WebApp on iPhone/iPad:\n1. Tap the Share button (square with arrow)\n2. Tap "Add to Home Screen"');
+        } else {
+            alert('To Install Maple WebApp on Android:\n1. Tap the 3 dots (⋮) in the top-right corner of Chrome\n2. Select "Install app" or "Add to Home screen"');
+        }
+        return;
+    }
+
+    // 3. On Desktop only: Provide desktop launcher shortcut
     const origin = window.location.origin;
-    const urlContent = `[InternetShortcut]\r\nURL=${origin}/index.html\r\nIconIndex=0\r\nIconFile=${origin}/favicon.svg\r\n`;
+    const urlContent = `[InternetShortcut]\r\nURL=${origin}/\r\nIconIndex=0\r\nIconFile=${origin}/favicon.svg\r\n`;
     const blob = new Blob([urlContent], { type: 'application/octet-stream' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -190,10 +206,9 @@ window.downloadWebAppDirect = function() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 
-    showDownloadToast('📥 Maple Apartments WebApp downloaded! Open to launch anytime.');
+    showDownloadToast('📥 Maple Apartments Desktop launcher downloaded!');
 };
 
-// Aliases for compatibility
 window.triggerAppDownload = window.downloadWebAppDirect;
 window.downloadDesktopShortcut = window.downloadWebAppDirect;
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maple-v8';
+const CACHE_NAME = 'maple-v9';
 const ASSETS = [
     '/',
     '/index.html',
@@ -8,7 +8,8 @@ const ASSETS = [
     '/icon-192.png',
     '/icon-512.png',
     '/admin-dashboard.html',
-    '/user-dashboard.html'
+    '/user-dashboard.html',
+    '/dashboard.css'
 ];
 
 // Install Event
@@ -44,8 +45,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
-    // Only handle GET requests
+    // Only handle GET requests and valid http/https schemes
     if (event.request.method !== 'GET') return;
+    if (!event.request.url.startsWith('http')) return;
 
     const url = new URL(event.request.url);
 
@@ -57,26 +59,32 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(event.request).catch(() => {
                 return caches.match(event.request).then((cached) => {
-                    return cached || caches.match('/index.html');
+                    return cached || caches.match('/') || caches.match('/index.html');
                 });
             })
         );
         return;
     }
 
-    // For static assets (CSS, JS, images): Stale-while-revalidate or Cache-first
+    // For static assets: Stale-while-revalidate or Cache-first
     event.respondWith(
         caches.match(event.request).then((cacheRes) => {
             if (cacheRes) {
-                // Fetch in background to update cache
                 fetch(event.request).then((networkRes) => {
-                    if (networkRes && networkRes.status === 200) {
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkRes));
+                    if (networkRes && networkRes.status === 200 && networkRes.type === 'basic') {
+                        const resToCache = networkRes.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resToCache));
                     }
                 }).catch(() => {});
                 return cacheRes;
             }
-            return fetch(event.request);
+            return fetch(event.request).then((networkRes) => {
+                if (networkRes && networkRes.status === 200 && networkRes.type === 'basic') {
+                    const resToCache = networkRes.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resToCache));
+                }
+                return networkRes;
+            }).catch(() => cacheRes);
         })
     );
 });
