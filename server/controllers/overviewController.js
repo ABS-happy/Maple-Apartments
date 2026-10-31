@@ -67,10 +67,9 @@ const getOverview = async (req, res) => {
             }
 
             // Sync payment status with latest bill if present
-            const isBillPaid = latestBill && latestBill.status && latestBill.status.toLowerCase() === 'paid';
-            const isRoomPaid = roomObj.paymentStatus && roomObj.paymentStatus.toLowerCase() === 'paid';
-
-            if (isBillPaid || isRoomPaid) {
+            if (latestBill && latestBill.status) {
+                roomObj.paymentStatus = latestBill.status.toLowerCase() === 'paid' ? 'paid' : 'unpaid';
+            } else if (roomObj.paymentStatus && roomObj.paymentStatus.toLowerCase() === 'paid') {
                 roomObj.paymentStatus = 'paid';
             } else {
                 roomObj.paymentStatus = 'unpaid';
