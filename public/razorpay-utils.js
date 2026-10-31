@@ -92,7 +92,7 @@
                                 <h3 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: white;">Razorpay Checkout</h3>
                                 <span style="background: #f59e0b; color: #78350f; font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">Test Mode</span>
                             </div>
-                            <p style="font-size: 0.78rem; color: #94a3b8; margin: 0.15rem 0 0 0;">Maple Apartments BMS • Flat ${flatNo}</p>
+                            <p style="font-size: 0.78rem; color: #94a3b8; margin: 0.15rem 0 0 0;">Maple Apartment • Flat ${flatNo}</p>
                         </div>
                     </div>
                     <button id="rzpCloseBtn" style="background: transparent; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer; padding: 0.25rem; line-height: 1;" title="Close Checkout">&times;</button>
