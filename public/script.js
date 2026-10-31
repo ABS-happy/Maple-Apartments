@@ -151,50 +151,25 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // WebApp Direct Download & PWA Installer
 // ==========================================
-let deferredInstallPrompt = null;
+window.deferredInstallPrompt = window.deferredInstallPrompt || null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
-    deferredInstallPrompt = e;
+    window.deferredInstallPrompt = e;
     console.log('[PWA] beforeinstallprompt captured successfully');
+    const dlBtn = document.getElementById('downloadAppBtn');
+    if (dlBtn) {
+        dlBtn.classList.add('ready-to-install');
+    }
 });
 
 window.addEventListener('appinstalled', () => {
     console.log('[PWA] Maple Apartments WebApp installed successfully');
-    deferredInstallPrompt = null;
+    window.deferredInstallPrompt = null;
     showDownloadToast('🎉 Maple Apartments WebApp installed successfully!');
 });
 
-window.downloadWebAppDirect = function() {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // 1. If native PWA browser install prompt is available (Chrome, Edge, Samsung Internet), trigger it
-    if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        deferredInstallPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-                console.log('[PWA] User accepted installation prompt');
-                showDownloadToast('🎉 Maple Apartments WebApp installing to Home Screen!');
-            }
-            deferredInstallPrompt = null;
-        }).catch((err) => {
-            console.error('[PWA] Install prompt error:', err);
-        });
-        return;
-    }
-
-    // 2. On Mobile, guide the resident clearly instead of downloading invalid .url files
-    if (isMobile) {
-        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isIOS) {
-            alert('To Install Maple WebApp on iPhone/iPad:\n1. Tap the Share button (square with arrow)\n2. Tap "Add to Home Screen"');
-        } else {
-            alert('To Install Maple WebApp on Android:\n1. Tap the 3 dots (⋮) in the top-right corner of Chrome\n2. Select "Install app" or "Add to Home screen"');
-        }
-        return;
-    }
-
-    // 3. On Desktop only: Provide desktop launcher shortcut
+window.downloadDesktopShortcutFallback = function() {
     const origin = window.location.origin;
     const urlContent = `[InternetShortcut]\r\nURL=${origin}/\r\nIconIndex=0\r\nIconFile=${origin}/favicon.svg\r\n`;
     const blob = new Blob([urlContent], { type: 'application/octet-stream' });
@@ -205,8 +180,112 @@ window.downloadWebAppDirect = function() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-
     showDownloadToast('📥 Maple Apartments Desktop launcher downloaded!');
+};
+
+window.closePwaInstallModal = function() {
+    const modal = document.getElementById('pwaInstallModalOverlay');
+    if (modal) modal.remove();
+};
+
+window.openPwaInstallModal = function() {
+    window.closePwaInstallModal();
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+
+    let guideHtml = '';
+
+    if (isIOS) {
+        guideHtml = `
+            <div class="instructions-card" style="margin-bottom: 1.25rem;">
+                <h5 style="color: #ea580c; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">
+                    <i class="fa-brands fa-apple"></i> Install on iPhone / iPad (Safari)
+                </h5>
+                <ol style="padding-left: 1.2rem; line-height: 1.8; color: #374151; font-size: 0.9rem;">
+                    <li>Tap the <strong>Share</strong> button <i class="fa-solid fa-arrow-up-from-bracket" style="color:#0284c7;"></i> at the bottom of Safari.</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+                    <li>Tap <strong>"Add"</strong> in the top-right corner.</li>
+                </ol>
+            </div>
+        `;
+    } else if (isAndroid) {
+        guideHtml = `
+            <div class="instructions-card" style="margin-bottom: 1.25rem;">
+                <h5 style="color: #ea580c; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">
+                    <i class="fa-brands fa-android" style="color: #10b981;"></i> Install on Android (Chrome / Samsung)
+                </h5>
+                <ol style="padding-left: 1.2rem; line-height: 1.8; color: #374151; font-size: 0.9rem;">
+                    <li>Tap the <strong>three dots (⋮)</strong> in Chrome's top-right corner.</li>
+                    <li>Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+                    <li>Tap <strong>"Install"</strong> to add Maple Apartments to your Home screen!</li>
+                </ol>
+            </div>
+        `;
+    } else {
+        guideHtml = `
+            <div class="instructions-card" style="margin-bottom: 1.25rem;">
+                <h5 style="color: #ea580c; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">
+                    <i class="fa-solid fa-desktop" style="color: #6366f1;"></i> Install on Computer (Chrome / Edge)
+                </h5>
+                <ol style="padding-left: 1.2rem; line-height: 1.8; color: #374151; font-size: 0.9rem;">
+                    <li>Click the <strong>Install icon (⊕)</strong> on the right side of your browser address bar.</li>
+                    <li>Click <strong>"Install"</strong> to launch Maple Apartments as a standalone window.</li>
+                </ol>
+            </div>
+            <button class="pwa-secondary-btn" style="width: 100%; margin-bottom: 0.75rem;" onclick="window.downloadDesktopShortcutFallback()">
+                <i class="fa-solid fa-download"></i> Download Windows Shortcut (.url)
+            </button>
+        `;
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'pwaInstallModalOverlay';
+    modal.className = 'pwa-modal-overlay';
+    modal.innerHTML = `
+        <div class="pwa-modal-card">
+            <button class="pwa-modal-close" onclick="window.closePwaInstallModal()">&times;</button>
+            <div class="pwa-modal-header">
+                <img src="/icon-192.png" alt="Maple Leaf Icon" style="width: 68px; height: 68px; border-radius: 16px; margin: 0 auto 0.75rem; display: block; box-shadow: 0 4px 14px rgba(249,115,22,0.35);">
+                <h3>Install Maple Apartments</h3>
+                <p>Add the official app to your Home screen for quick 1-tap access and instant dues receipts.</p>
+            </div>
+            ${guideHtml}
+            <button class="pwa-primary-btn" style="width: 100%;" onclick="window.closePwaInstallModal()">
+                <i class="fa-solid fa-check"></i> Got It
+            </button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+window.downloadWebAppDirect = function() {
+    // 1. Check if already installed & running in standalone mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone) {
+        showDownloadToast('✅ Maple Apartments is already installed on your device!');
+        return;
+    }
+
+    // 2. If native prompt is captured and ready, trigger it immediately
+    if (window.deferredInstallPrompt) {
+        window.deferredInstallPrompt.prompt();
+        window.deferredInstallPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('[PWA] User accepted installation prompt');
+                showDownloadToast('🎉 Maple Apartments WebApp installing to Home Screen!');
+            }
+            window.deferredInstallPrompt = null;
+        }).catch((err) => {
+            console.error('[PWA] Install prompt error:', err);
+            window.openPwaInstallModal();
+        });
+        return;
+    }
+
+    // 3. Otherwise, show the clean visual step-by-step installation guide modal
+    window.openPwaInstallModal();
 };
 
 window.triggerAppDownload = window.downloadWebAppDirect;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maple-v9';
+const CACHE_NAME = 'maple-v10';
 const ASSETS = [
     '/',
     '/index.html',
