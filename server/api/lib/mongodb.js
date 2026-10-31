@@ -8,21 +8,31 @@ if (!cached) {
 }
 
 async function connectToDatabase() {
-    if (cached.conn) {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+        return mongoose.connection;
+    }
+
+    if (cached.conn && cached.conn.readyState === 1) {
         return cached.conn;
     }
 
     if (!cached.promise) {
         const opts = {
-            bufferCommands: false,
+            bufferCommands: true,
+            serverSelectionTimeoutMS: 8000,
         };
 
-        const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/maple_apartments';
-        cached.promise = mongoose.connect(mongoURI, opts).then((mongoose) => {
-            return mongoose;
+        const mongoURI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/maple_apartments';
+        cached.promise = mongoose.connect(mongoURI, opts).then((m) => {
+            return m;
         });
     }
-    cached.conn = await cached.promise;
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        throw e;
+    }
     return cached.conn;
 }
 

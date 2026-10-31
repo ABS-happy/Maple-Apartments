@@ -26,7 +26,20 @@ app.use((req, res, next) => {
     next();
 });
 
-// Connect to MongoDB
+// Ensure database connection is established for API requests
+app.use(async (req, res, next) => {
+    if (req.url.startsWith('/api')) {
+        try {
+            await connectToDatabase();
+        } catch (err) {
+            console.error('❌ Serverless MongoDB connection error:', err);
+            return res.status(500).json({ error: 'Database connection error' });
+        }
+    }
+    next();
+});
+
+// Initial database connection attempt for long-running server
 connectToDatabase()
     .then(() => console.log('✅ Connected to MongoDB successfully'))
     .catch(err => console.error('❌ MongoDB connection error:', err));

@@ -1,8 +1,9 @@
 const Room = require('../models/Room');
-const { Bill } = require('../api/lib/mongodb');
+const { Bill, connectToDatabase } = require('../api/lib/mongodb');
 
 const getOverview = async (req, res) => {
     try {
+        await connectToDatabase();
         const roomsInDb = await Room.find({ role: 'User' });
         const allBills = await Bill.find({ is_archived: { $ne: true } }).sort({ created_at: -1 });
         
@@ -133,6 +134,7 @@ const getOverview = async (req, res) => {
 
 const updateRoom = async (req, res) => {
     try {
+        await connectToDatabase();
         const { roomId } = req.params;
         const updates = req.body;
         
@@ -205,6 +207,7 @@ const updateRoom = async (req, res) => {
 
 const bulkUpdateRooms = async (req, res) => {
     try {
+        await connectToDatabase();
         const updates = req.body;
         let updated = 0;
         let failed = 0;
@@ -252,6 +255,7 @@ const bulkUpdateRooms = async (req, res) => {
 
 const updateStatus = async (req, res) => {
     try {
+        await connectToDatabase();
         const { roomId } = req.params;
         const { paymentStatus, paidDate } = req.body;
         const room = await Room.findByIdAndUpdate(roomId, { paymentStatus, paidDate }, { returnDocument: 'after' });
