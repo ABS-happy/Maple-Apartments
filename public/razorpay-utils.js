@@ -324,8 +324,8 @@
             }
 
             // 2. Check if we should directly launch the Native Test Sandbox Modal
-            // This happens when order is in test mode or keys are unactivated sandbox credentials
-            const isSandboxOrder = orderData.isMockOrder || (orderData.orderId && orderData.orderId.startsWith('order_test_'));
+            // Only if the order explicitly requested a mock/offline fallback
+            const isSandboxOrder = Boolean(orderData.isMockOrder);
 
             if (isSandboxOrder) {
                 // Open test sandbox checkout directly
@@ -333,7 +333,7 @@
                 return;
             }
 
-            // 3. Attempt official window.Razorpay checkout SDK if real keys are configured
+            // 3. Attempt official window.Razorpay checkout SDK
             const isSdkLoaded = await loadRazorpayScript();
             if (!isSdkLoaded || !window.Razorpay) {
                 // Seamlessly fall back to sandbox modal if SDK is blocked by adblockers
@@ -350,13 +350,13 @@
             const prefillPhone = residentInfo.phone || userObj.mobile_number || '';
 
             const options = {
-                key: orderData.keyId,
+                key: orderData.key_id || orderData.keyId,
                 amount: orderData.amount,
                 currency: orderData.currency || 'INR',
                 name: 'Maple Apartments',
                 description: `Monthly Rent & Maintenance - Flat ${orderData.flatNumber || flatId} (${month || 'Current'})`,
                 image: '/favicon.svg',
-                order_id: orderData.orderId,
+                order_id: orderData.order_id || orderData.orderId,
                 prefill: {
                     name: prefillName,
                     email: prefillEmail,

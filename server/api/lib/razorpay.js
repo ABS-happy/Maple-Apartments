@@ -3,38 +3,43 @@ const crypto = require('crypto');
 
 /**
  * =========================================================================
- * RAZORPAY TEST MODE CLIENT INITIALIZATION
+ * RAZORPAY STANDARD WEB CHECKOUT CLIENT
  * =========================================================================
  * Keys are loaded securely from environment variables (.env / process.env).
- * NEVER hardcode your Razorpay Key Secret in code.
- *
- * Test Mode Credentials for QA / Verification:
- * - Test Card 1: 4012 0000 0000 0002 | Expiry: 12/28 | CVV: 123 | OTP: 123456
- * - Test Card 2: 4111 1111 1111 1111 | Expiry: 12/28 | CVV: 123 | OTP: 123456
- * - Test UPI: success@razorpay (auto-approved)
- * - Test Netbanking: Select any bank (SBI/HDFC/ICICI) -> Click "Success"
+ * KEY_SECRET is kept strictly on the backend and never exposed to the frontend.
  * =========================================================================
  */
 
-const keyId = process.env.RAZORPAY_KEY_ID;
-const keySecret = process.env.RAZORPAY_KEY_SECRET;
+function getRazorpayInstance() {
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-if (!keyId || !keySecret) {
-    console.warn('⚠️  [Razorpay Warning] RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not set in environment variables. Set them in .env for live test payments.');
+    if (!keyId || !keySecret) {
+        console.warn('⚠️  [Razorpay Warning] RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not set in environment variables.');
+    }
+
+    return new Razorpay({
+        key_id: keyId || 'rzp_test_placeholder',
+        key_secret: keySecret || 'placeholder_secret'
+    });
 }
 
-// Initialize Razorpay SDK instance
-const razorpayInstance = new Razorpay({
-    key_id: keyId || 'rzp_test_placeholder',
-    key_secret: keySecret || 'placeholder_secret'
+// Dynamic proxy instance ensuring fresh process.env keys are always used
+const razorpayInstance = new Proxy({}, {
+    get(target, prop) {
+        const instance = getRazorpayInstance();
+        const val = instance[prop];
+        return typeof val === 'function' ? val.bind(instance) : val;
+    }
 });
 
 /**
  * Verify Razorpay payment signature using HMAC SHA-256
+ * Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
  * @param {string} orderId - Razorpay Order ID
  * @param {string} paymentId - Razorpay Payment ID
  * @param {string} signature - Razorpay Signature from checkout callback
- * @returns {boolean} - true if signature is authentic
+ * @returns {boolean} - true if signature matches
  */
 function verifyPaymentSignature(orderId, paymentId, signature) {
     if (!orderId || !paymentId || !signature) return false;
@@ -52,6 +57,7 @@ function verifyPaymentSignature(orderId, paymentId, signature) {
 
 module.exports = {
     razorpayInstance,
+    getRazorpayInstance,
     verifyPaymentSignature,
     getKeyId: () => process.env.RAZORPAY_KEY_ID
 };

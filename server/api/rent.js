@@ -5,79 +5,104 @@ const { sendNotificationEmail } = require('./lib/mailer');
 
 /**
  * Rent Order Creation Handler
- * POST /api/rent/create-order
+ * POST /api/create-order or POST /api/rent/create-order
  * 
- * Validates rent/maintenance dues from MongoDB, creates a Razorpay Order in paise,
- * and tracks the order in the database for secure verification.
+ * Creates a Razorpay Order in paise (minimum 100 paise = 1 INR)
+ * and returns { order_id, amount, currency }
  */
 async function createOrder(req, res) {
     try {
         await connectToDatabase();
 
-        const { flatId, flat_number, roomId, room_id, residentId, billId, bill_id, month, year } = req.body || {};
+        const {
+            amount,
+            currency = 'INR',
+            receipt,
+            flatId,
+            flat_number,
+            roomId,
+            room_id,
+            residentId,
+            billId,
+            bill_id,
+            month,
+            year,
+            notes = {}
+        } = req.body || {};
+
         const targetFlat = (flatId || flat_number || roomId || room_id || '').toString().trim();
 
-        if (!targetFlat) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'flatId (or flat_number) is required' 
-            });
-        }
-
-        // 1. Fetch Resident and Bill records from database to validate amount
-        const user = await User.findOne({
-            $or: [
-                { flat_number: targetFlat },
-                { _id: targetFlat.match(/^[0-9a-fA-F]{24}$/) ? targetFlat : null },
-                { username: targetFlat }
-            ].filter(Boolean)
-        });
-
-        const flatNo = user ? user.flat_number : targetFlat;
-
-        // Find active unpaid bill for this flat
-        let bill = null;
-        const targetBillId = billId || bill_id;
-        if (targetBillId) {
-            bill = await Bill.findById(targetBillId);
-        }
-        if (!bill) {
-            bill = await Bill.findOne({ 
-                flat_number: flatNo, 
-                status: 'Unpaid', 
-                is_archived: { $ne: true } 
-            }).sort({ created_at: -1 });
-        }
-
-        // Calculate authoritative amount from DB
+        let amountInPaise = 0;
         let amountInRupees = 0;
-        if (bill && Number(bill.amount) > 0) {
-            amountInRupees = Number(bill.amount);
-        } else if (user) {
-            const c = user.charges || {};
-            const sumCharges = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
-            amountInRupees = sumCharges > 0 ? sumCharges : (Number(user.maintenanceAmount) || 2500);
+        let user = null;
+        let bill = null;
+
+        if (amount !== undefined && amount !== null && amount !== '') {
+            const raw = Number(amount);
+            if (isNaN(raw) || raw < 100) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Amount must be at least 100 paise (1 INR)'
+                });
+            }
+            amountInPaise = Math.round(raw);
+            amountInRupees = amountInPaise / 100;
+        } else if (targetFlat) {
+            user = await User.findOne({
+                $or: [
+                    { flat_number: targetFlat },
+                    { _id: targetFlat.match(/^[0-9a-fA-F]{24}$/) ? targetFlat : null },
+                    { username: targetFlat }
+                ].filter(Boolean)
+            });
+
+            const flatNo = user ? user.flat_number : targetFlat;
+            const targetBillId = billId || bill_id;
+            if (targetBillId) {
+                bill = await Bill.findById(targetBillId);
+            }
+            if (!bill) {
+                bill = await Bill.findOne({
+                    flat_number: flatNo,
+                    status: 'Unpaid',
+                    is_archived: { $ne: true }
+                }).sort({ created_at: -1 });
+            }
+
+            if (bill && Number(bill.amount) > 0) {
+                amountInRupees = Number(bill.amount);
+            } else if (user) {
+                const c = user.charges || {};
+                const sumCharges = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
+                amountInRupees = sumCharges > 0 ? sumCharges : (Number(user.maintenanceAmount) || 2500);
+            } else {
+                amountInRupees = 2500;
+            }
+
+            amountInPaise = Math.round(amountInRupees * 100);
         } else {
-            amountInRupees = 2500;
-        }
-
-        // Razorpay expects amount in paise (1 INR = 100 paise)
-        const amountInPaise = Math.round(amountInRupees * 100);
-
-        if (amountInPaise <= 0) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Invalid payment amount. Amount must be greater than zero.' 
+            return res.status(400).json({
+                success: false,
+                error: 'Amount in paise (or flatId) is required'
             });
         }
 
-        // 2. Prepare order options
-        const receiptId = `rcpt_${flatNo}_${Date.now().toString().slice(-8)}`;
+        if (amountInPaise < 100) {
+            return res.status(400).json({
+                success: false,
+                error: 'Amount must be at least 100 paise (1 INR)'
+            });
+        }
+
+        const flatNo = user ? user.flat_number : (targetFlat || 'Standard');
+        const receiptId = receipt || `rcpt_${flatNo}_${Date.now().toString().slice(-8)}`;
+
         const orderOptions = {
             amount: amountInPaise,
-            currency: 'INR',
+            currency: currency || 'INR',
             receipt: receiptId,
             notes: {
+                ...notes,
                 flatId: flatNo,
                 residentId: user?._id?.toString() || residentId || '',
                 billId: bill?._id?.toString() || '',
@@ -86,56 +111,39 @@ async function createOrder(req, res) {
             }
         };
 
-        // 3. Create order via Razorpay SDK instance
         let order;
         try {
             order = await razorpayInstance.orders.create(orderOptions);
         } catch (sdkErr) {
-            // Check if credentials are placeholder / unactivated keys in test mode
-            const isPlaceholderSecret = !process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET.includes('*');
-            const isTestAuthError = sdkErr.statusCode === 401 && (process.env.RAZORPAY_KEY_ID?.startsWith('rzp_test_') || isPlaceholderSecret);
-
-            if (isPlaceholderSecret || isTestAuthError) {
-                console.warn('⚠️  [Razorpay Test Sandbox] Remote API returned 401 or placeholder keys detected. Creating mock sandbox order for local test mode.');
-                order = {
-                    id: `order_test_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                    amount: amountInPaise,
-                    currency: 'INR',
-                    receipt: receiptId,
-                    status: 'created'
-                };
-            } else {
-                throw sdkErr;
+            console.error('❌ Razorpay orders.create error:', sdkErr);
+            if (sdkErr.statusCode === 401) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Razorpay authentication failed. Verify RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.'
+                });
             }
+            return res.status(sdkErr.statusCode || 500).json({
+                success: false,
+                error: sdkErr.error?.description || sdkErr.message || 'Failed to create Razorpay order'
+            });
         }
-
-        // Payment record is intentionally NOT created as Pending here
-        // It is strictly created and saved upon verified payment in verifyPayment
 
         const residentName = user?.owner_name || user?.resident?.name || `Resident ${flatNo}`;
         const residentEmail = user?.email || user?.resident?.email || '';
         const residentPhone = user?.mobile_number || user?.resident?.phone || '';
 
-        const isMockOrder = !order.status || order.id.startsWith('order_test_');
-        const testPaymentId = `pay_test_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const testSecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret_maple2026';
-        const testSignature = crypto
-            .createHmac('sha256', testSecret)
-            .update(`${order.id}|${testPaymentId}`)
-            .digest('hex');
-
         return res.json({
             success: true,
+            order_id: order.id,
+            id: order.id,
             orderId: order.id,
-            isMockOrder: isMockOrder,
-            testPaymentId: testPaymentId,
-            testSignature: testSignature,
-            amount: order.amount,       // amount in paise
+            amount: order.amount,
             amountInRupees: amountInRupees,
             currency: order.currency,
-            keyId: getKeyId() || 'rzp_test_T7SOBhHsCvrWoC',
-            billId: bill?._id?.toString() || "",
+            key_id: getKeyId() || process.env.RAZORPAY_KEY_ID,
+            keyId: getKeyId() || process.env.RAZORPAY_KEY_ID,
             receipt: order.receipt,
+            billId: bill?._id?.toString() || "",
             flatNumber: flatNo,
             resident: {
                 name: residentName,
@@ -143,7 +151,6 @@ async function createOrder(req, res) {
                 phone: residentPhone
             }
         });
-
     } catch (err) {
         console.error('❌ Razorpay create-order error:', err);
         return res.status(500).json({
@@ -155,16 +162,20 @@ async function createOrder(req, res) {
 
 /**
  * Rent Payment Verification Handler
- * POST /api/rent/verify-payment
+ * POST /api/verify-payment or POST /api/rent/verify-payment
  * 
  * Verifies Razorpay checkout signature using HMAC SHA-256 against RAZORPAY_KEY_SECRET.
- * Upon successful match, transitions flat rent status and bill to 'PAID'.
+ * Algorithm: HMAC-SHA256(order_id + "|" + payment_id, KEY_SECRET)
+ * Returns success only if signatures match.
  */
 async function verifyPayment(req, res) {
     try {
         await connectToDatabase();
 
         const {
+            order_id,
+            payment_id,
+            signature,
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature,
@@ -174,86 +185,81 @@ async function verifyPayment(req, res) {
             room_id,
             paymentRecordId,
             billId,
-            bill_id
+            bill_id,
+            month
         } = req.body || {};
 
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        const effectiveOrderId = order_id || razorpay_order_id;
+        const effectivePaymentId = payment_id || razorpay_payment_id;
+        const effectiveSignature = signature || razorpay_signature;
+
+        if (!effectiveOrderId || !effectivePaymentId || !effectiveSignature) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing Razorpay verification parameters (razorpay_order_id, razorpay_payment_id, razorpay_signature).'
+                error: 'Missing required fields: order_id, payment_id, signature'
             });
         }
 
         // 1. Cryptographically verify signature using HMAC SHA-256
-        let isValid = verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+        const isValid = verifyPaymentSignature(effectiveOrderId, effectivePaymentId, effectiveSignature);
 
         if (!isValid) {
-            const fallbackSecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret_maple2026';
-            const expectedFallback = crypto
-                .createHmac('sha256', fallbackSecret)
-                .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-                .digest('hex');
-            if (expectedFallback === razorpay_signature) {
-                isValid = true;
-            }
-        }
-
-        if (!isValid) {
-            console.error(`❌ [Razorpay Signature Mismatch] order: ${razorpay_order_id}, payment: ${razorpay_payment_id}`);
+            console.error(`❌ [Razorpay Signature Mismatch] order: ${effectiveOrderId}, payment: ${effectivePaymentId}`);
             
             // Mark payment record as Failed if found
             if (paymentRecordId) {
                 await Payment.findByIdAndUpdate(paymentRecordId, {
                     $set: {
                         status: 'Failed',
-                        razorpay_payment_id,
-                        razorpay_signature
+                        razorpay_payment_id: effectivePaymentId,
+                        razorpay_signature: effectiveSignature
                     }
                 }).catch(() => {});
             }
 
             return res.status(400).json({
                 success: false,
-                message: 'Payment verification failed'
+                error: 'Payment signature verification failed'
             });
         }
 
-        // 2. Signature match confirmed! Find payment record and flat
+        // 2. Signature match confirmed!
         let payment = null;
         if (paymentRecordId) {
             payment = await Payment.findById(paymentRecordId);
         }
         if (!payment) {
-            payment = await Payment.findOne({ razorpay_order_id });
+            payment = await Payment.findOne({ razorpay_order_id: effectiveOrderId });
         }
 
         const targetFlat = flatId || flat_number || roomId || room_id || payment?.flat_number;
         const targetBillId = billId || bill_id || payment?.bill_id;
 
-        // 3. Save official Payment record strictly as 'PAID'
+        // Save official Payment record strictly as 'PAID'
         const billRec = targetBillId ? await Bill.findById(targetBillId) : null;
-        const paidAmount = Number(billRec?.amount) || 2700;
+        const paidAmount = Number(billRec?.amount) || (payment?.amount) || 2700;
         const paidMonth = billRec?.month || billRec?.billing_month || (month ? month : new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
 
         if (payment) {
             payment.status = 'PAID';
             payment.amount = paidAmount;
             payment.month = paidMonth;
-            payment.razorpay_payment_id = razorpay_payment_id;
-            payment.razorpay_signature = razorpay_signature;
+            payment.razorpay_order_id = effectiveOrderId;
+            payment.razorpay_payment_id = effectivePaymentId;
+            payment.razorpay_signature = effectiveSignature;
             payment.verified_at = new Date();
             await payment.save();
-        } else {
+        } else if (targetFlat) {
             payment = new Payment({
-                flat_number: targetFlat || 'Unknown',
+                flat_number: targetFlat,
                 bill_id: targetBillId,
                 amount: paidAmount,
                 month: paidMonth,
                 year: new Date().getFullYear(),
                 transfer_mode: 'Razorpay',
-                razorpay_order_id,
-                razorpay_payment_id,
-                razorpay_signature,
+                razorpay_order_id: effectiveOrderId,
+                razorpay_payment_id: effectivePaymentId,
+                razorpay_signature: effectiveSignature,
                 status: 'PAID',
                 verified_at: new Date(),
                 created_at: new Date()
@@ -261,11 +267,11 @@ async function verifyPayment(req, res) {
             await payment.save();
         }
 
-        // 4. Update flat's Bill status to 'Paid' and save paymentId, orderId, paidAt
+        // Update flat's Bill status to 'Paid' and save paymentId, orderId, paidAt
         const billSetData = {
             status: 'Paid',
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id,
+            paymentId: effectivePaymentId,
+            orderId: effectiveOrderId,
             paid_at: new Date(),
             paidAt: new Date()
         };
@@ -296,7 +302,7 @@ async function verifyPayment(req, res) {
             await payment.save().catch(() => {});
         }
 
-        // 5. Update User / Room rent status to 'paid' in flat_owners collection
+        // Update User / Room rent status to 'paid' in flat_owners collection
         if (targetFlat) {
             await User.findOneAndUpdate(
                 { flat_number: targetFlat },
@@ -304,26 +310,28 @@ async function verifyPayment(req, res) {
             );
         }
 
-        // 6. Notify Resident via Email
+        // Notify Resident via Email if email is configured
         if (targetFlat) {
             const user = await User.findOne({ flat_number: targetFlat });
             const email = user?.email || user?.resident?.email;
             if (email) {
                 const subject = `Rent Payment Receipt: Room ${targetFlat} - Maple Apartments`;
-                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nPayment ID: ${razorpay_payment_id}\nOrder ID: ${razorpay_order_id}\nAmount: ₹${payment.amount}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
+                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nPayment ID: ${effectivePaymentId}\nOrder ID: ${effectiveOrderId}\nAmount: ₹${payment?.amount || paidAmount}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
                 sendNotificationEmail(email, subject, body).catch(e => console.error('Receipt email dispatch failed:', e));
             }
         }
 
-        console.log(`✅ [Razorpay Success] Room ${targetFlat}: Payment ₹${payment.amount} verified (ID: ${razorpay_payment_id})`);
+        console.log(`✅ [Razorpay Success] Payment verified (Order: ${effectiveOrderId}, Payment ID: ${effectivePaymentId})`);
 
         return res.json({
             success: true,
             message: 'Payment verified successfully',
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id,
+            order_id: effectiveOrderId,
+            payment_id: effectivePaymentId,
+            orderId: effectiveOrderId,
+            paymentId: effectivePaymentId,
             flatNumber: targetFlat,
-            amount: payment.amount,
+            amount: payment ? payment.amount : undefined,
             paidAt: new Date().toISOString()
         });
 
@@ -331,7 +339,7 @@ async function verifyPayment(req, res) {
         console.error('❌ Razorpay verify-payment error:', err);
         return res.status(500).json({
             success: false,
-            message: err.message || 'Payment verification failed'
+            error: err.message || 'Payment verification failed'
         });
     }
 }

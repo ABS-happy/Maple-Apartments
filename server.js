@@ -130,7 +130,9 @@ app.post('/api/reset-password', (req, res) => resetPasswordHandler(req, res));
 app.post('/api/verify-utr', (req, res) => verifyUtrHandler(req, res));
 app.all('/api/reminders', (req, res) => remindersHandler(req, res));
 
-// Razorpay Rent Payment Endpoints (Test Mode)
+// Razorpay Standard Web Checkout & Rent Payment Endpoints
+app.post('/api/create-order', (req, res) => rentHandler.createOrder(req, res));
+app.post('/api/verify-payment', (req, res) => rentHandler.verifyPayment(req, res));
 app.post('/api/rent/create-order', (req, res) => rentHandler.createOrder(req, res));
 app.post('/api/rent/verify-payment', (req, res) => rentHandler.verifyPayment(req, res));
 app.get('/api/rent/receipts/:flatNumber', (req, res) => rentHandler.getReceiptsForFlat(req, res));

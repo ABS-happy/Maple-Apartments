@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maple Apartments - Razorpay Standard Checkout</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Razorpay Standard Web Checkout SDK -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        :root {
+            --primary: #f97316;
+            --primary-hover: #ea580c;
+            --bg: #0f172a;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            color: var(--text-main);
+        }
+
+        .checkout-container {
+            width: 100%;
+            max-width: 520px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+            padding: 2rem;
+            color: white;
+            text-align: center;
+            position: relative;
+        }
+
+        .header .logo {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-bottom: 0.75rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+        }
+
+        .badge-mode {
+            display: inline-block;
+            background: rgba(0, 0, 0, 0.25);
+            color: #fed7aa;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-top: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.4rem;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .currency-symbol {
+            position: absolute;
+            left: 1rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #64748b;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            font-size: 0.95rem;
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.2s;
+            color: var(--text-main);
+        }
+
+        .form-control.with-currency {
+            padding-left: 2.25rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+        }
+
+        .preset-pills {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .preset-pill {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .preset-pill:hover {
+            background: #fed7aa;
+            border-color: #fdba74;
+            color: #9a3412;
+        }
+
+        .btn-pay {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
+            transition: all 0.2s;
+            margin-top: 1rem;
+        }
+
+        .btn-pay:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(249, 115, 22, 0.45);
+        }
+
+        .btn-pay:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-box {
+            margin-top: 1.25rem;
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            display: none;
+            line-height: 1.5;
+        }
+
+        .status-box.info {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+
+        .status-box.error {
+            display: block;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+        }
+
+        .status-box.success {
+            display: block;
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+        }
+
+        .receipt-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-top: 1rem;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            font-size: 0.85rem;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .receipt-row:last-child {
+            border-bottom: none;
+        }
+
+        .receipt-row .label {
+            color: var(--text-muted);
+        }
+
+        .receipt-row .val {
+            font-weight: 600;
+            color: var(--text-main);
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .nav-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            margin: 0 0.5rem;
+        }
+
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🍁</div>
+            <h1>Maple Apartments</h1>
+            <p>Razorpay Standard Web Checkout</p>
+            <span class="badge-mode">Razorpay Test Mode Active</span>
+        </div>
+
+        <!-- Form Content -->
+        <div class="content">
+            <div class="form-group">
+                <label for="payAmount">Amount to Pay</label>
+                <div class="input-wrapper">
+                    <span class="currency-symbol">₹</span>
+                    <input type="number" id="payAmount" class="form-control with-currency" value="2700" min="1" step="1" required>
+                </div>
+                <div class="preset-pills">
+                    <button type="button" class="preset-pill" onclick="setAmount(500)">₹500</button>
+                    <button type="button" class="preset-pill" onclick="setAmount(1000)">₹1,000</button>
+                    <button type="button" class="preset-pill" onclick="setAmount(2700)">₹2,700 (Rent)</button>
+                    <button type="button" class="preset-pill" onclick="setAmount(5000)">₹5,000</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="roomNumber">Room / Flat Number</label>
+                <input type="text" id="roomNumber" class="form-control" value="101" placeholder="e.g. 101, 202">
+            </div>
+
+            <div class="form-group">
+                <label for="residentName">Resident Name</label>
+                <input type="text" id="residentName" class="form-control" value="Resident 101" placeholder="Full Name">
+            </div>
+
+            <div class="form-group">
+                <label for="residentEmail">Email Address (Optional)</label>
+                <input type="email" id="residentEmail" class="form-control" value="resident101@maple.com" placeholder="email@domain.com">
+            </div>
+
+            <button id="rzp-pay-btn" class="btn-pay" onclick="initiateRazorpayCheckout()">
+                <i class="fa-solid fa-lock"></i>
+                <span id="btnText">Pay with Razorpay</span>
+            </button>
+
+            <!-- Status Box -->
+            <div id="statusBox" class="status-box"></div>
+
+            <!-- Receipt Container -->
+            <div id="receiptContainer" style="display: none;"></div>
+
+            <div class="nav-links">
+                <a href="/user-dashboard.html"><i class="fa-solid fa-house"></i> Resident Portal</a>
+                &bull;
+                <a href="/admin-dashboard.html"><i class="fa-solid fa-shield-halved"></i> Admin Portal</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setAmount(val) {
+            document.getElementById('payAmount').value = val;
+        }
+
+        function showStatus(type, message) {
+            const box = document.getElementById('statusBox');
+            box.className = 'status-box ' + type;
+            box.innerHTML = message;
+            box.style.display = 'block';
+        }
+
+        function hideStatus() {
+            const box = document.getElementById('statusBox');
+            box.style.display = 'none';
+        }
+
+        async function initiateRazorpayCheckout() {
+            const btn = document.getElementById('rzp-pay-btn');
+            const btnText = document.getElementById('btnText');
+            const receiptDiv = document.getElementById('receiptContainer');
+            
+            receiptDiv.style.display = 'none';
+            hideStatus();
+
+            const amountRupees = parseFloat(document.getElementById('payAmount').value);
+            if (!amountRupees || isNaN(amountRupees) || amountRupees < 1) {
+                showStatus('error', '<i class="fa-solid fa-circle-exclamation"></i> Minimum payment amount is ₹1 (100 paise).');
+                return;
+            }
+
+            const amountPaise = Math.round(amountRupees * 100);
+            const flatId = document.getElementById('roomNumber').value.trim() || '101';
+            const name = document.getElementById('residentName').value.trim() || ('Resident ' + flatId);
+            const email = document.getElementById('residentEmail').value.trim() || '';
+            const receipt = 'rcpt_' + flatId + '_' + Date.now().toString().slice(-6);
+
+            // Step 1: Disable button & show spinner
+            btn.disabled = true;
+            btnText.innerHTML = '<div class="spinner"></div> Creating Razorpay Order...';
+
+            try {
+                // Call Backend Order Creation Endpoint: POST /api/create-order
+                const createRes = await fetch('/api/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: amountPaise,
+                        currency: 'INR',
+                        receipt: receipt,
+                        flatId: flatId,
+                        notes: {
+                            flatId: flatId,
+                            residentName: name
+                        }
+                    })
+                });
+
+                const orderData = await createRes.json();
+
+                if (!createRes.ok || !orderData.order_id) {
+                    throw new Error(orderData.error || 'Failed to initialize order with Razorpay.');
+                }
+
+                btnText.innerHTML = '<div class="spinner"></div> Opening Razorpay Gateway...';
+
+                // Step 2: Open Razorpay Standard Checkout Modal
+                const options = {
+                    key: orderData.key_id || orderData.keyId,
+                    amount: orderData.amount,
+                    currency: orderData.currency || 'INR',
+                    name: 'Maple Apartments',
+                    description: 'Rent & Maintenance - Room ' + flatId,
+                    image: '/favicon.svg',
+                    order_id: orderData.order_id,
+                    prefill: {
+                        name: name,
+                        email: email,
+                        contact: '9000000' + flatId
+                    },
+                    theme: {
+                        color: '#f97316'
+                    },
+                    handler: async function (response) {
+                        // Step 3: Send verification payload to backend endpoint
+                        showStatus('info', '<div class="spinner" style="border-top-color:#1e40af; border-color:#93c5fd;"></div> Verifying cryptographic signature with Maple backend...');
+                        btnText.textContent = 'Verifying Payment...';
+
+                        try {
+                            const verifyRes = await fetch('/api/verify-payment', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    order_id: response.razorpay_order_id,
+                                    payment_id: response.razorpay_payment_id,
+                                    signature: response.razorpay_signature,
+                                    flatId: flatId
+                                })
+                            });
+
+                            const verifyData = await verifyRes.json();
+
+                            if (verifyRes.ok && verifyData.success) {
+                                showStatus('success', '<i class="fa-solid fa-circle-check"></i> <strong>Payment Verified Successfully!</strong> Rent receipt has been generated.');
+                                
+                                // Render verified receipt
+                                receiptDiv.innerHTML = `
+                                    <div class="receipt-card">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                                            <strong style="color:var(--primary); font-size:1.05rem;">Maple Apartment Receipt</strong>
+                                            <span style="background:#dcfce7; color:#15803d; font-size:0.75rem; font-weight:700; padding:2px 8px; border-radius:4px;">PAID</span>
+                                        </div>
+                                        <div class="receipt-row">
+                                            <span class="label">Amount Paid</span>
+                                            <span class="val" style="color:#f97316; font-size:1.1rem; font-weight:800;">₹${amountRupees}</span>
+                                        </div>
+                                        <div class="receipt-row">
+                                            <span class="label">Flat / Room</span>
+                                            <span class="val">${flatId}</span>
+                                        </div>
+                                        <div class="receipt-row">
+                                            <span class="label">Payment ID</span>
+                                            <span class="val">${response.razorpay_payment_id}</span>
+                                        </div>
+                                        <div class="receipt-row">
+                                            <span class="label">Order ID</span>
+                                            <span class="val">${response.razorpay_order_id}</span>
+                                        </div>
+                                        <div class="receipt-row">
+                                            <span class="label">HMAC SHA-256</span>
+                                            <span class="val" style="color:#059669;">Verified Valid</span>
+                                        </div>
+                                    </div>
+                                `;
+                                receiptDiv.style.display = 'block';
+
+                            } else {
+                                throw new Error(verifyData.error || 'Signature mismatch or verification failed.');
+                            }
+                        } catch (verifyErr) {
+                            showStatus('error', '<i class="fa-solid fa-triangle-exclamation"></i> <strong>Verification Error:</strong> ' + verifyErr.message);
+                        } finally {
+                            btn.disabled = false;
+                            btnText.innerHTML = '<i class="fa-solid fa-lock"></i> Pay with Razorpay';
+                        }
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            showStatus('info', '<i class="fa-solid fa-info-circle"></i> Payment cancelled by user. You can try again anytime.');
+                            btn.disabled = false;
+                            btnText.innerHTML = '<i class="fa-solid fa-lock"></i> Pay with Razorpay';
+                        }
+                    }
+                };
+
+                const rzp = new window.Razorpay(options);
+                rzp.on('payment.failed', function (failResp) {
+                    const desc = failResp.error ? failResp.error.description : 'Payment could not be completed';
+                    showStatus('error', '<i class="fa-solid fa-circle-xmark"></i> <strong>Payment Failed:</strong> ' + desc);
+                    btn.disabled = false;
+                    btnText.innerHTML = '<i class="fa-solid fa-lock"></i> Pay with Razorpay';
+                });
+
+                rzp.open();
+                btn.disabled = false;
+                btnText.innerHTML = '<i class="fa-solid fa-lock"></i> Pay with Razorpay';
+
+            } catch (err) {
+                showStatus('error', '<i class="fa-solid fa-triangle-exclamation"></i> <strong>Checkout Error:</strong> ' + err.message);
+                btn.disabled = false;
+                btnText.innerHTML = '<i class="fa-solid fa-lock"></i> Pay with Razorpay';
+            }
+        }
+    </script>
+</body>
+</html>

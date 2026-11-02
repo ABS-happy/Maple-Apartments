@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maple-v10';
+const CACHE_NAME = 'maple-v11';
 const ASSETS = [
     '/',
     '/index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
     '/icon-512.png',
     '/admin-dashboard.html',
     '/user-dashboard.html',
+    '/payment-demo.html',
     '/dashboard.css'
 ];
 
