@@ -411,7 +411,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        amount: amountPaise,
+                        amount: amountRupees,
+                        billAmountInRupees: amountRupees,
                         currency: 'INR',
                         receipt: receipt,
                         flatId: flatId,
@@ -540,3 +541,4 @@
     </script>
 </body>
 </html>
+

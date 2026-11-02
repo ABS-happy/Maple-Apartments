@@ -16,6 +16,9 @@ async function createOrder(req, res) {
 
         const {
             amount,
+            billAmountInRupees: inputRupees,
+            amountInRupees: altRupees,
+            amountInPaise: inputPaise,
             currency = 'INR',
             receipt,
             flatId,
@@ -32,22 +35,10 @@ async function createOrder(req, res) {
 
         const targetFlat = (flatId || flat_number || roomId || room_id || '').toString().trim();
 
-        let amountInPaise = 0;
-        let amountInRupees = 0;
         let user = null;
         let bill = null;
 
-        if (amount !== undefined && amount !== null && amount !== '') {
-            const raw = Number(amount);
-            if (isNaN(raw) || raw < 100) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Amount must be at least 100 paise (1 INR)'
-                });
-            }
-            amountInPaise = Math.round(raw);
-            amountInRupees = amountInPaise / 100;
-        } else if (targetFlat) {
+        if (targetFlat) {
             user = await User.findOne({
                 $or: [
                     { flat_number: targetFlat },
@@ -55,37 +46,58 @@ async function createOrder(req, res) {
                     { username: targetFlat }
                 ].filter(Boolean)
             });
+        }
 
-            const flatNo = user ? user.flat_number : targetFlat;
-            const targetBillId = billId || bill_id;
-            if (targetBillId) {
-                bill = await Bill.findById(targetBillId);
-            }
-            if (!bill) {
-                bill = await Bill.findOne({
-                    flat_number: flatNo,
-                    status: 'Unpaid',
-                    is_archived: { $ne: true }
-                }).sort({ created_at: -1 });
-            }
+        const flatNo = user ? user.flat_number : (targetFlat || 'Standard');
+        const targetBillId = billId || bill_id;
+        if (targetBillId) {
+            bill = await Bill.findById(targetBillId);
+        }
+        if (!bill && flatNo && flatNo !== 'Standard') {
+            bill = await Bill.findOne({
+                flat_number: flatNo,
+                status: 'Unpaid',
+                is_archived: { $ne: true }
+            }).sort({ created_at: -1 });
+        }
 
-            if (bill && Number(bill.amount) > 0) {
-                amountInRupees = Number(bill.amount);
-            } else if (user) {
-                const c = user.charges || {};
-                const sumCharges = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
-                amountInRupees = sumCharges > 0 ? sumCharges : (Number(user.maintenanceAmount) || 2500);
+        // 1. Determine rent/maintenance total amount in Rupees
+        let billAmountInRupees = 0;
+
+        if (inputRupees !== undefined && inputRupees !== null && inputRupees !== '') {
+            billAmountInRupees = Number(inputRupees);
+        } else if (altRupees !== undefined && altRupees !== null && altRupees !== '') {
+            billAmountInRupees = Number(altRupees);
+        } else if (inputPaise !== undefined && inputPaise !== null && inputPaise !== '') {
+            billAmountInRupees = Number(inputPaise) / 100;
+        } else if (amount !== undefined && amount !== null && amount !== '') {
+            const raw = Number(amount);
+            // If raw amount is passed in paise (>= 100,000 and matches no direct bill amount), convert to Rupees
+            if (raw >= 100000 && (!bill || Number(bill.amount) !== raw)) {
+                billAmountInRupees = raw / 100;
             } else {
-                amountInRupees = 2500;
+                billAmountInRupees = raw;
             }
-
-            amountInPaise = Math.round(amountInRupees * 100);
+        } else if (bill && Number(bill.amount) > 0) {
+            billAmountInRupees = Number(bill.amount);
+        } else if (user) {
+            const c = user.charges || {};
+            const sumCharges = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
+            billAmountInRupees = sumCharges > 0 ? sumCharges : (Number(user.maintenanceAmount) || 2500);
         } else {
+            billAmountInRupees = 2500;
+        }
+
+        if (isNaN(billAmountInRupees) || billAmountInRupees <= 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Amount in paise (or flatId) is required'
+                error: 'Valid rent amount in Rupees is required'
             });
         }
+
+        // Convert rent/maintenance total amount in Rupees to strictly integer paise:
+        // amount: Math.round(Number(billAmountInRupees) * 100)
+        const amountInPaise = parseInt(Math.round(Number(billAmountInRupees) * 100), 10);
 
         if (amountInPaise < 100) {
             return res.status(400).json({
@@ -94,7 +106,6 @@ async function createOrder(req, res) {
             });
         }
 
-        const flatNo = user ? user.flat_number : (targetFlat || 'Standard');
         const receiptId = receipt || `rcpt_${flatNo}_${Date.now().toString().slice(-8)}`;
 
         const orderOptions = {
@@ -138,7 +149,8 @@ async function createOrder(req, res) {
             id: order.id,
             orderId: order.id,
             amount: order.amount,
-            amountInRupees: amountInRupees,
+            amountInPaise: order.amount,
+            amountInRupees: billAmountInRupees,
             currency: order.currency,
             key_id: getKeyId() || process.env.RAZORPAY_KEY_ID,
             keyId: getKeyId() || process.env.RAZORPAY_KEY_ID,
@@ -237,12 +249,43 @@ async function verifyPayment(req, res) {
 
         // Save official Payment record strictly as 'PAID'
         const billRec = targetBillId ? await Bill.findById(targetBillId) : null;
-        const paidAmount = Number(billRec?.amount) || (payment?.amount) || 2700;
+        
+        // Map stored and displayed currency value properly back to Rupees (amountInPaise / 100)
+        let paidAmountInRupees = 0;
+        if (billRec && Number(billRec.amount) > 0) {
+            paidAmountInRupees = Number(billRec.amount);
+        } else if (req.body.billAmountInRupees !== undefined && req.body.billAmountInRupees !== null) {
+            paidAmountInRupees = Number(req.body.billAmountInRupees);
+        } else if (req.body.amountInRupees !== undefined && req.body.amountInRupees !== null) {
+            paidAmountInRupees = Number(req.body.amountInRupees);
+        } else if (req.body.amountInPaise !== undefined && req.body.amountInPaise !== null) {
+            paidAmountInRupees = Number(req.body.amountInPaise) / 100;
+        } else if (payment && payment.amount) {
+            const rawAmt = Number(payment.amount);
+            paidAmountInRupees = (rawAmt >= 100000 && rawAmt % 100 === 0) ? (rawAmt / 100) : rawAmt;
+        } else if (req.body.amount !== undefined && req.body.amount !== null && req.body.amount !== '') {
+            const rawAmt = Number(req.body.amount);
+            paidAmountInRupees = (rawAmt >= 100000 && rawAmt % 100 === 0) ? (rawAmt / 100) : rawAmt;
+        }
+
+        if (!paidAmountInRupees || paidAmountInRupees <= 0) {
+            try {
+                const rzpOrder = await razorpayInstance.orders.fetch(effectiveOrderId);
+                if (rzpOrder && rzpOrder.amount) {
+                    paidAmountInRupees = Math.round(Number(rzpOrder.amount)) / 100;
+                }
+            } catch (e) {}
+        }
+
+        if (!paidAmountInRupees || paidAmountInRupees <= 0) {
+            paidAmountInRupees = 2700;
+        }
+
         const paidMonth = billRec?.month || billRec?.billing_month || (month ? month : new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
 
         if (payment) {
             payment.status = 'PAID';
-            payment.amount = paidAmount;
+            payment.amount = paidAmountInRupees;
             payment.month = paidMonth;
             payment.razorpay_order_id = effectiveOrderId;
             payment.razorpay_payment_id = effectivePaymentId;
@@ -253,7 +296,7 @@ async function verifyPayment(req, res) {
             payment = new Payment({
                 flat_number: targetFlat,
                 bill_id: targetBillId,
-                amount: paidAmount,
+                amount: paidAmountInRupees,
                 month: paidMonth,
                 year: new Date().getFullYear(),
                 transfer_mode: 'Razorpay',
@@ -316,12 +359,12 @@ async function verifyPayment(req, res) {
             const email = user?.email || user?.resident?.email;
             if (email) {
                 const subject = `Rent Payment Receipt: Room ${targetFlat} - Maple Apartments`;
-                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nPayment ID: ${effectivePaymentId}\nOrder ID: ${effectiveOrderId}\nAmount: ₹${payment?.amount || paidAmount}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
+                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nPayment ID: ${effectivePaymentId}\nOrder ID: ${effectiveOrderId}\nAmount: ₹${payment?.amount || paidAmountInRupees}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
                 sendNotificationEmail(email, subject, body).catch(e => console.error('Receipt email dispatch failed:', e));
             }
         }
 
-        console.log(`✅ [Razorpay Success] Payment verified (Order: ${effectiveOrderId}, Payment ID: ${effectivePaymentId})`);
+        console.log(`✅ [Razorpay Success] Payment verified (Order: ${effectiveOrderId}, Payment ID: ${effectivePaymentId}, Amount: ₹${paidAmountInRupees})`);
 
         return res.json({
             success: true,
@@ -331,7 +374,8 @@ async function verifyPayment(req, res) {
             orderId: effectiveOrderId,
             paymentId: effectivePaymentId,
             flatNumber: targetFlat,
-            amount: payment ? payment.amount : undefined,
+            amount: paidAmountInRupees,
+            amountInRupees: paidAmountInRupees,
             paidAt: new Date().toISOString()
         });
 

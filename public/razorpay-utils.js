@@ -313,6 +313,7 @@
                     roomId: flatId || '',
                     billId: billId || '',
                     amount: amount || undefined,
+                    billAmountInRupees: amount || undefined,
                     month: month || '',
                     year: year || ''
                 })
@@ -377,7 +378,10 @@
                                 flatId: orderData.flatNumber || flatId,
                                 roomId: orderData.flatNumber || flatId,
                                 paymentRecordId: orderData.paymentRecordId,
-                                billId: billId || orderData.billId
+                                billId: billId || orderData.billId,
+                                amountInPaise: orderData.amount,
+                                amountInRupees: orderData.amountInRupees || (orderData.amount / 100),
+                                amount: orderData.amountInRupees || (orderData.amount / 100)
                             })
                         });
 
