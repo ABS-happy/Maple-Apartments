@@ -3,9 +3,14 @@
   "rewrites": [
     { "source": "/admin", "destination": "/admin-dashboard.html" },
     { "source": "/admin-dashboard", "destination": "/admin-dashboard.html" },
+    { "source": "/settings", "destination": "/settings.html" },
+    { "source": "/admin/settings", "destination": "/settings.html" },
     { "source": "/dashboard", "destination": "/user-dashboard.html" },
     { "source": "/user-dashboard", "destination": "/user-dashboard.html" },
     { "source": "/login", "destination": "/index.html" },
+    { "source": "/payment", "destination": "/payment-demo.html" },
+    { "source": "/payment-demo", "destination": "/payment-demo.html" },
+    { "source": "/checkout", "destination": "/payment-demo.html" },
     { "source": "/api/(.*)", "destination": "/api" }
   ],
   "headers": [

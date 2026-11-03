@@ -5,10 +5,22 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const { connectToDatabase, User, Bill, NotificationLog, Invite, Payment } = require('./server/api/lib/mongodb');
+const { connectToDatabase, User, Bill, NotificationLog, Invite, Payment, Setting } = require('./server/api/lib/mongodb');
 const { authenticateToken } = require('./server/api/lib/auth');
 const { sendNotificationEmail } = require('./server/api/lib/mailer');
+const {
+    getSystemSettings,
+    updateSystemSettings,
+    calculateBillLateFee,
+    enrichBillWithLateFee,
+    categorizeFlatBills,
+    getBillingCycleInfo,
+    determineNextCycle,
+    generateMonthlyBillsCycle,
+    checkAndRunScheduledAutoBilling
+} = require('./server/utils/billingUtils');
 const mongoose = require('mongoose');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,12 +31,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // URL path normalizer for serverless environments (e.g. Vercel rewrites)
-app.use((req, res, next) => {
-    if (!req.url.startsWith('/api') && !req.url.startsWith('/public') && !req.url.includes('.')) {
-        req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
-    }
-    next();
-});
+// Only active in Vercel serverless environment when handling API requests
+if (process.env.VERCEL) {
+    app.use((req, res, next) => {
+        if (!req.url.startsWith('/api') && !req.url.startsWith('/public') && !req.url.includes('.')) {
+            if (req.url === '/') {
+                req.url = '/api';
+            } else {
+                req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+            }
+        }
+        next();
+    });
+}
 
 // Ensure database connection is established for API requests
 app.use(async (req, res, next) => {
@@ -131,12 +150,476 @@ app.post('/api/verify-utr', (req, res) => verifyUtrHandler(req, res));
 app.all('/api/reminders', (req, res) => remindersHandler(req, res));
 
 // Razorpay Standard Web Checkout & Rent Payment Endpoints
+app.get(['/api', '/api/health'], (req, res) => {
+    const keyId = process.env.RAZORPAY_KEY_ID || '';
+    const isLive = keyId.startsWith('rzp_live_');
+    return res.json({
+        success: true,
+        service: 'Maple Apartments API',
+        status: 'online',
+        razorpay: {
+            configured: Boolean(keyId && process.env.RAZORPAY_KEY_SECRET),
+            mode: isLive ? 'live' : (keyId.startsWith('rzp_test_') ? 'test' : 'not_configured'),
+            key_id: keyId || null
+        },
+        endpoints: {
+            createOrder: 'POST /api/create-order or POST /api/rent/create-order',
+            verifyPayment: 'POST /api/verify-payment or POST /api/rent/verify-payment',
+            residentDues: 'GET /api/resident/dues?flat_number=101',
+            checkoutDemo: '/payment-demo.html',
+            residentDashboard: '/user-dashboard.html'
+        }
+    });
+});
+
+app.get(['/api/create-order', '/api/rent/create-order'], (req, res) => {
+    const keyId = process.env.RAZORPAY_KEY_ID || '';
+    const isLive = keyId.startsWith('rzp_live_');
+    return res.json({
+        success: true,
+        message: 'Razorpay order creation endpoint is operational. Send an HTTP POST request with JSON body { flatId, amount, paymentType } to create an order.',
+        method: 'POST',
+        gateway: 'Razorpay',
+        mode: isLive ? 'live' : 'test',
+        key_id: keyId || null,
+        demoCheckoutUrl: '/payment-demo.html'
+    });
+});
+
+app.get(['/api/verify-payment', '/api/rent/verify-payment'], (req, res) => {
+    return res.json({
+        success: true,
+        message: 'Razorpay payment verification endpoint is operational. Send an HTTP POST request with { razorpay_order_id, razorpay_payment_id, razorpay_signature } to verify.',
+        method: 'POST'
+    });
+});
+
+app.get(['/api/rent/key', '/api/razorpay/key'], (req, res) => {
+    const keyId = process.env.RAZORPAY_KEY_ID || '';
+    return res.json({
+        success: true,
+        key_id: keyId,
+        keyId: keyId,
+        mode: keyId.startsWith('rzp_live_') ? 'live' : 'test'
+    });
+});
+
 app.post('/api/create-order', (req, res) => rentHandler.createOrder(req, res));
 app.post('/api/verify-payment', (req, res) => rentHandler.verifyPayment(req, res));
 app.post('/api/rent/create-order', (req, res) => rentHandler.createOrder(req, res));
 app.post('/api/rent/verify-payment', (req, res) => rentHandler.verifyPayment(req, res));
 app.get('/api/rent/receipts/:flatNumber', (req, res) => rentHandler.getReceiptsForFlat(req, res));
 app.get('/api/payments/all', (req, res) => rentHandler.getAllPaymentsHistory(req, res));
+
+// Admin Settings: Get configuration
+const handleGetAdminSettings = async (req, res) => {
+    try {
+        const settings = await getSystemSettings();
+        const nextCycle = await determineNextCycle(Bill);
+        const recurringSettings = {
+            billingStartDay: settings.billingStartDay !== undefined ? settings.billingStartDay : 1,
+            defaultDueIntervalDays: settings.defaultDueIntervalDays !== undefined ? settings.defaultDueIntervalDays : 10,
+            autoBillingEnabled: settings.autoBillingEnabled !== false,
+            copyPreviousMonthRates: settings.copyPreviousMonthRates !== false,
+            lastAutoBillingRun: settings.lastAutoBillingRun || null,
+            lastGeneratedCycle: settings.lastGeneratedCycle || '',
+            upcomingCycle: nextCycle ? nextCycle.month : ''
+        };
+
+        return res.json({
+            success: true,
+            settings: {
+                societyName: settings.societyName,
+                address: settings.address,
+                defaultMaintenance: settings.defaultMaintenance,
+                lateFeeAmount: settings.lateFeeAmount,
+                gracePeriodDays: settings.gracePeriodDays,
+                lateFeePercentage: settings.lateFeePercentage,
+                reminderTemplate: settings.reminderTemplate,
+                ...recurringSettings
+            },
+            lateFeeAmount: settings.lateFeeAmount,
+            gracePeriodDays: settings.gracePeriodDays,
+            societyName: settings.societyName,
+            address: settings.address,
+            defaultMaintenance: settings.defaultMaintenance,
+            reminderTemplate: settings.reminderTemplate,
+            ...recurringSettings
+        });
+    } catch (err) {
+        console.error('Error fetching admin settings:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+app.get('/api/admin/settings', handleGetAdminSettings);
+app.get('/api/settings', handleGetAdminSettings);
+
+// Admin Settings: Save configuration (PUT /api/admin/settings & POST /api/admin/settings/late-fee)
+const handleSaveAdminSettings = async (req, res) => {
+    try {
+        const updated = await updateSystemSettings(req.body);
+        const nextCycle = await determineNextCycle(Bill);
+        return res.json({
+            success: true,
+            message: 'Settings saved successfully',
+            settings: {
+                societyName: updated.societyName,
+                address: updated.address,
+                defaultMaintenance: updated.defaultMaintenance,
+                lateFeeAmount: updated.lateFeeAmount,
+                gracePeriodDays: updated.gracePeriodDays,
+                lateFeePercentage: updated.lateFeePercentage,
+                reminderTemplate: updated.reminderTemplate,
+                billingStartDay: updated.billingStartDay,
+                defaultDueIntervalDays: updated.defaultDueIntervalDays,
+                autoBillingEnabled: updated.autoBillingEnabled,
+                copyPreviousMonthRates: updated.copyPreviousMonthRates,
+                lastAutoBillingRun: updated.lastAutoBillingRun,
+                lastGeneratedCycle: updated.lastGeneratedCycle,
+                upcomingCycle: nextCycle ? nextCycle.month : ''
+            },
+            lateFeeAmount: updated.lateFeeAmount,
+            gracePeriodDays: updated.gracePeriodDays,
+            billingStartDay: updated.billingStartDay,
+            defaultDueIntervalDays: updated.defaultDueIntervalDays,
+            autoBillingEnabled: updated.autoBillingEnabled,
+            copyPreviousMonthRates: updated.copyPreviousMonthRates
+        });
+    } catch (err) {
+        console.error('Error saving admin settings:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+app.put('/api/admin/settings', handleSaveAdminSettings);
+app.post('/api/admin/settings', handleSaveAdminSettings);
+app.put('/api/settings', handleSaveAdminSettings);
+app.post('/api/settings', handleSaveAdminSettings);
+app.post('/api/admin/settings/late-fee', handleSaveAdminSettings);
+
+// -------------------------------------------------------------
+// Recurring Monthly Billing Automation Endpoints
+// -------------------------------------------------------------
+
+// GET /api/admin/settings/recurring-billing
+app.get('/api/admin/settings/recurring-billing', async (req, res) => {
+    try {
+        const settings = await getSystemSettings();
+        const nextCycle = await determineNextCycle(Bill);
+        return res.json({
+            success: true,
+            settings: {
+                billingStartDay: settings.billingStartDay !== undefined ? settings.billingStartDay : 1,
+                defaultDueIntervalDays: settings.defaultDueIntervalDays !== undefined ? settings.defaultDueIntervalDays : 10,
+                autoBillingEnabled: settings.autoBillingEnabled !== false,
+                copyPreviousMonthRates: settings.copyPreviousMonthRates !== false,
+                lastAutoBillingRun: settings.lastAutoBillingRun || null,
+                lastGeneratedCycle: settings.lastGeneratedCycle || '',
+                upcomingCycle: nextCycle ? nextCycle.month : ''
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching recurring billing settings:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// POST /api/admin/settings/recurring-billing
+app.post('/api/admin/settings/recurring-billing', async (req, res) => {
+    try {
+        const updated = await updateSystemSettings(req.body);
+        const nextCycle = await determineNextCycle(Bill);
+        return res.json({
+            success: true,
+            message: 'Recurring billing automation settings saved successfully',
+            settings: {
+                billingStartDay: updated.billingStartDay,
+                defaultDueIntervalDays: updated.defaultDueIntervalDays,
+                autoBillingEnabled: updated.autoBillingEnabled,
+                copyPreviousMonthRates: updated.copyPreviousMonthRates,
+                lastAutoBillingRun: updated.lastAutoBillingRun,
+                lastGeneratedCycle: updated.lastGeneratedCycle,
+                upcomingCycle: nextCycle ? nextCycle.month : ''
+            }
+        });
+    } catch (err) {
+        console.error('Error saving recurring billing settings:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// POST /api/admin/bills/generate-next-cycle: Triggers creation of next month's bills for all rooms
+app.post('/api/admin/bills/generate-next-cycle', async (req, res) => {
+    try {
+        const { targetMonth, targetYear, dueIntervalDays, copyPreviousRates, force } = req.body || {};
+        const result = await generateMonthlyBillsCycle({
+            targetMonth,
+            targetYear,
+            dueIntervalDays,
+            copyPreviousRates,
+            force: force === true || force === 'true',
+            triggerSource: 'ADMIN_MANUAL'
+        });
+        return res.json(result);
+    } catch (err) {
+        console.error('Error generating next cycle bills:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// GET /api/cron/generate-monthly-bills: Protected route for automated cron runs
+app.all('/api/cron/generate-monthly-bills', async (req, res) => {
+    try {
+        const force = req.query.force === 'true' || req.body?.force === true;
+        const result = await checkAndRunScheduledAutoBilling({ force });
+        return res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            result
+        });
+    } catch (err) {
+        console.error('Error executing cron generate-monthly-bills:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Daily Cron Job for Recurring Monthly Rent Billing (runs at 00:01 every day)
+cron.schedule('1 0 * * *', async () => {
+    console.log(`⏰ [CRON ${new Date().toISOString()}] Checking daily recurring monthly rent billing cycle...`);
+    try {
+        const result = await checkAndRunScheduledAutoBilling();
+        console.log(`⏰ [CRON] Daily check result:`, result);
+    } catch (err) {
+        console.error(`❌ [CRON] Error during scheduled auto-billing:`, err);
+    }
+});
+
+// Resident Dues API: Get current bill, previous unpaid arrears, and totals
+app.get('/api/resident/dues', async (req, res) => {
+    try {
+        let flatNo = req.query.flat_number || req.query.flat || req.query.roomId;
+        if (!flatNo) {
+            const authUser = authenticateToken(req);
+            if (authUser && authUser.flat_number) {
+                flatNo = authUser.flat_number;
+            }
+        }
+
+        if (!flatNo) {
+            return res.status(400).json({ success: false, error: 'flat_number is required' });
+        }
+
+        const resident = await User.findOne({ flat_number: flatNo, role: 'User' });
+        const settings = await getSystemSettings();
+
+        let bills = await Bill.find({
+            flat_number: flatNo,
+            is_draft: { $ne: true },
+            is_archived: { $ne: true }
+        }).sort({ created_at: 1 });
+
+        // Auto-seed active bill if none exists yet for this flat
+        if (bills.length === 0 && resident) {
+            const c = resident.charges || {};
+            const maint = Number(c.rental) || Number(resident.maintenanceAmount) || 2500;
+            const fest = Number(c.festival) || 0;
+            const park = Number(c.parking) || 0;
+            const oth = Number(c.others) || 0;
+            const total = maint + fest + park + oth;
+            const dueDate = resident.dueDate || new Date('2026-11-15T00:00:00.000Z');
+            const status = (resident.paymentStatus || 'unpaid').toLowerCase() === 'paid' ? 'Paid' : 'Unpaid';
+
+            const newBill = new Bill({
+                flat_number: flatNo,
+                bill_type: 'Maintenance',
+                maintenance: maint,
+                festival: fest,
+                parking: park,
+                others: oth,
+                amount: total,
+                due_date: dueDate,
+                status: status,
+                is_draft: false,
+                notification_status: resident.notificationStatus || 'Sent',
+                notified_at: new Date()
+            });
+            await newBill.save();
+            bills = [newBill];
+        }
+
+        const {
+            currentBill,
+            previousUnpaidBills,
+            totalPreviousDue,
+            currentTotal,
+            grandTotal,
+            allEnrichedBills
+        } = categorizeFlatBills(bills, settings);
+
+        const residentName = resident ? (resident.owner_name || resident.resident?.name || `Resident ${flatNo}`) : `Resident ${flatNo}`;
+        const residentPhone = resident ? (resident.mobile_number || resident.resident?.phone || '') : '';
+        const residentEmail = resident ? (resident.email || resident.resident?.email || '') : '';
+
+        return res.json({
+            success: true,
+            flat_number: flatNo,
+            resident: {
+                name: residentName,
+                phone: residentPhone,
+                email: residentEmail
+            },
+            currentBill,
+            previousUnpaidBills,
+            totalPreviousDue,
+            currentTotal,
+            grandTotal,
+            allBills: allEnrichedBills,
+            settings: {
+                lateFeeAmount: settings.lateFeeAmount,
+                gracePeriodDays: settings.gracePeriodDays
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching resident dues:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Admin Room Ledger & Due Inspection Endpoint
+app.get('/api/admin/rooms/:roomId/ledger', async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        let user = null;
+
+        if (roomId.match(/^[0-9a-fA-F]{24}$/)) {
+            user = await User.findById(roomId);
+        }
+        if (!user) {
+            user = await User.findOne({
+                $or: [
+                    { flat_number: roomId },
+                    { username: roomId }
+                ]
+            });
+        }
+
+        const flatNo = user ? user.flat_number : roomId;
+        const settings = await getSystemSettings();
+
+        // Fetch all bills for this room (chronological ascending)
+        const bills = await Bill.find({
+            flat_number: flatNo,
+            is_draft: { $ne: true }
+        }).sort({ created_at: 1 });
+
+        // Fetch all verified payments for this room
+        const payments = await Payment.find({
+            flat_number: flatNo
+        }).sort({ created_at: 1 });
+
+        const {
+            currentBill,
+            previousUnpaidBills,
+            totalPreviousDue,
+            currentTotal,
+            grandTotal,
+            allEnrichedBills
+        } = categorizeFlatBills(bills, settings);
+
+        // Build history table items
+        // Columns: [Month/Year, Base Amount, Late Fee, Total Billed, Status, Paid Date, Razorpay Payment ID]
+        const history = allEnrichedBills.map(b => {
+            const isPaid = (b.status || '').toLowerCase() === 'paid';
+            const matchedPayment = payments.find(p =>
+                (p.bill_id && p.bill_id.toString() === b._id.toString()) ||
+                (b.paymentId && p.razorpay_payment_id === b.paymentId) ||
+                (p.month && b.month && p.month.trim().toLowerCase() === b.month.trim().toLowerCase())
+            );
+
+            const mYear = b.month || b.billing_month || (b.due_date ? new Date(b.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
+            const baseAmount = Number(b.amount) || 0;
+            const lateFee = Number(b.lateFee || b.late_fee || 0);
+            const totalBilled = baseAmount + lateFee;
+            const status = isPaid ? 'PAID' : 'UNPAID';
+            const paidDate = isPaid
+                ? (b.paid_at || b.paidAt || matchedPayment?.verified_at || matchedPayment?.created_at ? new Date(b.paid_at || b.paidAt || matchedPayment.verified_at || matchedPayment.created_at).toLocaleDateString('en-GB') : 'Recorded')
+                : '—';
+            const paymentId = b.paymentId || matchedPayment?.razorpay_payment_id || matchedPayment?.utr_number || (isPaid ? 'Cash/UPI' : '—');
+
+            return {
+                id: b._id,
+                monthYear: mYear,
+                baseAmount,
+                lateFee,
+                totalBilled,
+                status,
+                isPaid,
+                isOverdue: b.isOverdue || false,
+                dueDate: b.due_date ? new Date(b.due_date).toLocaleDateString('en-GB') : '—',
+                paidDate,
+                paymentId
+            };
+        });
+
+        // Reverse history so newest cycle appears on top
+        history.reverse();
+
+        const residentName = user ? (user.owner_name || user.resident?.name || `Resident ${flatNo}`) : `Resident ${flatNo}`;
+        const residentPhone = user ? (user.mobile_number || user.resident?.phone || '') : '';
+        const residentEmail = user ? (user.email || user.resident?.email || '') : '';
+
+        const currentMonthStatus = currentBill
+            ? (currentBill.status || '').toUpperCase()
+            : (user && user.paymentStatus === 'paid' ? 'PAID' : 'UNPAID');
+
+        const currentDueDate = currentBill?.due_date
+            ? new Date(currentBill.due_date).toLocaleDateString('en-GB')
+            : (user?.dueDate ? new Date(user.dueDate).toLocaleDateString('en-GB') : '—');
+
+        const currentMonthBillAmount = currentBill
+            ? (Number(currentBill.amount) || 0)
+            : (user ? (Number(user.charges?.rental) || Number(user.maintenanceAmount) || 2500) : 2500);
+
+        const currentLateFee = currentBill ? (Number(currentBill.lateFee) || 0) : 0;
+        const currentTotalPayable = currentBill ? (Number(currentBill.totalPayable) || currentMonthBillAmount) : currentMonthBillAmount;
+
+        return res.json({
+            success: true,
+            flat_number: flatNo,
+            roomId: user ? user._id : flatNo,
+            resident: {
+                name: residentName,
+                phone: residentPhone,
+                email: residentEmail,
+                flat_number: flatNo,
+                profile: user?.profile || {}
+            },
+            currentMonth: {
+                month: currentBill?.month || 'Current Month',
+                status: currentMonthStatus,
+                dueDate: currentDueDate,
+                rawDueDate: currentBill?.due_date || user?.dueDate || null,
+                baseAmount: currentMonthBillAmount,
+                lateFee: currentLateFee,
+                totalPayable: currentTotalPayable,
+                isOverdue: currentBill ? Boolean(currentBill.isOverdue) : false
+            },
+            cumulativeUnpaidDues: grandTotal,
+            totalArrears: totalPreviousDue,
+            currentOverduePenalty: currentLateFee,
+            unpaidBillsCount: (previousUnpaidBills.length + (currentBill && (currentBill.status || '').toLowerCase() === 'unpaid' ? 1 : 0)),
+            history,
+            settings: {
+                lateFeeAmount: settings.lateFeeAmount,
+                gracePeriodDays: settings.gracePeriodDays
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching room ledger:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 // 2. Overview & Rooms API
 const overviewController = require('./server/controllers/overviewController');
@@ -386,7 +869,9 @@ app.patch('/api/user/update-profile', async (req, res) => {
 app.get('/api/bills', async (req, res) => {
     try {
         const bills = await Bill.find({}).sort({ created_at: -1 });
-        res.json(bills);
+        const settings = await getSystemSettings();
+        const enrichedBills = bills.map(b => enrichBillWithLateFee(b, settings));
+        res.json(enrichedBills);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -432,7 +917,9 @@ app.get('/api/bills/:flat_number', async (req, res) => {
             bills = [newBill];
         }
 
-        res.json(bills);
+        const settings = await getSystemSettings();
+        const enrichedBills = bills.map(b => enrichBillWithLateFee(b, settings));
+        res.json(enrichedBills);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -1152,11 +1639,20 @@ app.use((req, res, next) => {
         return next();
     }
 
-    if (req.path === '/admin') {
+    if (req.path === '/admin' || req.path === '/admin-dashboard') {
         return res.sendFile(path.join(publicDir, 'admin-dashboard.html'));
     }
-    if (req.path === '/dashboard') {
+    if (req.path === '/admin/settings' || req.path === '/settings') {
+        return res.sendFile(path.join(publicDir, 'settings.html'));
+    }
+    if (req.path === '/dashboard' || req.path === '/user-dashboard') {
         return res.sendFile(path.join(publicDir, 'user-dashboard.html'));
+    }
+    if (req.path === '/login' || req.path === '/') {
+        return res.sendFile(path.join(publicDir, 'index.html'));
+    }
+    if (req.path === '/payment' || req.path === '/payment-demo' || req.path === '/checkout') {
+        return res.sendFile(path.join(publicDir, 'payment-demo.html'));
     }
 
     const htmlPath = path.join(publicDir, `${req.path}.html`);

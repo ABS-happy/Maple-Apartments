@@ -97,8 +97,28 @@ const billSchema = new mongoose.Schema({
     orderId: { type: String },
     month: { type: String },
     year: { type: Number },
+    late_fee: { type: Number, default: 0 },
     is_archived: { type: Boolean, default: false },
     created_at: { type: Date, default: Date.now }
+});
+
+const settingSchema = new mongoose.Schema({
+    key: { type: String, default: 'general', unique: true },
+    societyName: { type: String, default: 'Maple Apartments' },
+    address: { type: String, default: '12-A, Maple Crossroad, Bangalore - 560001' },
+    defaultMaintenance: { type: Number, default: 2500 },
+    lateFeeAmount: { type: Number, default: 200 },
+    gracePeriodDays: { type: Number, default: 0 },
+    lateFeePercentage: { type: Number, default: 5 },
+    reminderTemplate: { type: String, default: 'Dear Resident, your maintenance bill for [MONTH] of ₹[TOTAL] is due. Please pay via UPI or Cash to avoid late fees. — Management' },
+    // Recurring Monthly Rent Billing Automation
+    billingStartDay: { type: Number, default: 1, min: 1, max: 31 },
+    defaultDueIntervalDays: { type: Number, default: 10, min: 1, max: 60 },
+    autoBillingEnabled: { type: Boolean, default: true },
+    copyPreviousMonthRates: { type: Boolean, default: true },
+    lastAutoBillingRun: { type: Date },
+    lastGeneratedCycle: { type: String, default: '' },
+    updated_at: { type: Date, default: Date.now }
 });
 
 const notificationLogSchema = new mongoose.Schema({
@@ -136,6 +156,7 @@ const Bill = mongoose.models.Bill || mongoose.model('Bill', billSchema, 'bills')
 const NotificationLog = mongoose.models.NotificationLog || mongoose.model('NotificationLog', notificationLogSchema);
 const Invite = mongoose.models.Invite || mongoose.model('Invite', inviteSchema, 'invites');
 const Payment = mongoose.models.Payment || mongoose.model('Payment', paymentSchema, 'payments');
+const Setting = mongoose.models.Setting || mongoose.model('Setting', settingSchema, 'settings');
 
-module.exports = { connectToDatabase, User, Bill, NotificationLog, Invite, Payment };
+module.exports = { connectToDatabase, User, Bill, NotificationLog, Invite, Payment, Setting };
 

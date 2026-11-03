@@ -1,7 +1,8 @@
 const crypto = require('crypto');
-const { connectToDatabase, User, Bill, Payment } = require('./lib/mongodb');
+const { connectToDatabase, User, Bill, Payment, Setting } = require('./lib/mongodb');
 const { razorpayInstance, verifyPaymentSignature, getKeyId } = require('./lib/razorpay');
 const { sendNotificationEmail } = require('./lib/mailer');
+const { getSystemSettings, calculateBillLateFee, enrichBillWithLateFee, categorizeFlatBills } = require('../utils/billingUtils');
 
 /**
  * Rent Order Creation Handler
@@ -13,8 +14,12 @@ const { sendNotificationEmail } = require('./lib/mailer');
 async function createOrder(req, res) {
     try {
         await connectToDatabase();
+        const settings = await getSystemSettings();
 
         const {
+            type,
+            paymentType,
+            orderType: inputOrderType,
             amount,
             billAmountInRupees: inputRupees,
             amountInRupees: altRupees,
@@ -34,6 +39,7 @@ async function createOrder(req, res) {
         } = req.body || {};
 
         const targetFlat = (flatId || flat_number || roomId || room_id || '').toString().trim();
+        const requestedType = (paymentType || type || inputOrderType || '').toString().trim().toUpperCase();
 
         let user = null;
         let bill = null;
@@ -50,26 +56,87 @@ async function createOrder(req, res) {
 
         const flatNo = user ? user.flat_number : (targetFlat || 'Standard');
         const targetBillId = billId || bill_id;
-        if (targetBillId) {
-            bill = await Bill.findById(targetBillId);
-        }
-        if (!bill && flatNo && flatNo !== 'Standard') {
-            bill = await Bill.findOne({
+
+        // Fetch all active unarchived bills for this flat to evaluate arrears and late fees
+        let allFlatBills = [];
+        if (flatNo && flatNo !== 'Standard') {
+            allFlatBills = await Bill.find({
                 flat_number: flatNo,
-                status: 'Unpaid',
-                is_archived: { $ne: true }
-            }).sort({ created_at: -1 });
+                is_archived: { $ne: true },
+                is_draft: { $ne: true }
+            }).sort({ created_at: 1 });
+        }
+
+        const { currentBill, previousUnpaidBills, totalPreviousDue, currentTotal, grandTotal } = categorizeFlatBills(allFlatBills, settings);
+
+        let coveredBills = [];
+        let calculatedRupees = 0;
+        let effectiveOrderType = requestedType || 'CURRENT';
+
+        if (requestedType === 'PREVIOUS_DUES') {
+            effectiveOrderType = 'PREVIOUS_DUES';
+            coveredBills = previousUnpaidBills;
+            calculatedRupees = totalPreviousDue;
+            bill = previousUnpaidBills[0] || null;
+            billAmountInRupees = totalPreviousDue;
+        } else if (requestedType === 'TOTAL_OUTSTANDING') {
+            effectiveOrderType = 'TOTAL_OUTSTANDING';
+            coveredBills = (currentBill && (currentBill.status || '').toLowerCase() === 'unpaid')
+                ? [...previousUnpaidBills, currentBill]
+                : previousUnpaidBills;
+            calculatedRupees = grandTotal;
+            bill = currentBill || previousUnpaidBills[0] || null;
+            billAmountInRupees = grandTotal;
+        } else {
+            // Default or 'CURRENT'
+            effectiveOrderType = 'CURRENT';
+            if (targetBillId) {
+                bill = await Bill.findById(targetBillId);
+                if (bill) {
+                    const enriched = enrichBillWithLateFee(bill, settings);
+                    coveredBills = [enriched];
+                    calculatedRupees = enriched.totalPayable;
+                    billAmountInRupees = enriched.totalPayable;
+                }
+            } else if (currentBill) {
+                coveredBills = [currentBill];
+                calculatedRupees = currentBill.totalPayable;
+                billAmountInRupees = currentBill.totalPayable;
+                bill = currentBill;
+            } else if (flatNo && flatNo !== 'Standard') {
+                bill = await Bill.findOne({
+                    flat_number: flatNo,
+                    status: 'Unpaid',
+                    is_archived: { $ne: true }
+                }).sort({ created_at: -1 });
+                if (bill) {
+                    const enriched = enrichBillWithLateFee(bill, settings);
+                    coveredBills = [enriched];
+                    calculatedRupees = enriched.totalPayable;
+                    billAmountInRupees = enriched.totalPayable;
+                }
+            }
         }
 
         // 1. Determine rent/maintenance total amount in Rupees
-        let billAmountInRupees = 0;
-
-        if (inputRupees !== undefined && inputRupees !== null && inputRupees !== '') {
+        if (effectiveOrderType === 'PREVIOUS_DUES') {
+            billAmountInRupees = calculatedRupees > 0 ? calculatedRupees : (Number(inputRupees) || 0);
+        } else if (effectiveOrderType === 'CURRENT') {
+            if (calculatedRupees > 0) {
+                billAmountInRupees = calculatedRupees;
+            } else if (inputRupees !== undefined && inputRupees !== null && inputRupees !== '') {
+                billAmountInRupees = Number(inputRupees);
+            } else if (altRupees !== undefined && altRupees !== null && altRupees !== '') {
+                billAmountInRupees = Number(altRupees);
+            }
+        } else if (inputRupees !== undefined && inputRupees !== null && inputRupees !== '') {
             billAmountInRupees = Number(inputRupees);
         } else if (altRupees !== undefined && altRupees !== null && altRupees !== '') {
             billAmountInRupees = Number(altRupees);
         } else if (inputPaise !== undefined && inputPaise !== null && inputPaise !== '') {
             billAmountInRupees = Number(inputPaise) / 100;
+        } else if (calculatedRupees > 0) {
+            billAmountInRupees = calculatedRupees;
         } else if (amount !== undefined && amount !== null && amount !== '') {
             const raw = Number(amount);
             // If raw amount is passed in paise (>= 100,000 and matches no direct bill amount), convert to Rupees
@@ -79,7 +146,8 @@ async function createOrder(req, res) {
                 billAmountInRupees = raw;
             }
         } else if (bill && Number(bill.amount) > 0) {
-            billAmountInRupees = Number(bill.amount);
+            const enriched = enrichBillWithLateFee(bill, settings);
+            billAmountInRupees = Number(enriched.totalPayable);
         } else if (user) {
             const c = user.charges || {};
             const sumCharges = (Number(c.rental) || 0) + (Number(c.festival) || 0) + (Number(c.parking) || 0) + (Number(c.others) || 0);
@@ -91,7 +159,9 @@ async function createOrder(req, res) {
         if (isNaN(billAmountInRupees) || billAmountInRupees <= 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Valid rent amount in Rupees is required'
+                error: effectiveOrderType === 'PREVIOUS_DUES'
+                    ? 'No outstanding previous dues found for this room'
+                    : 'Valid rent amount in Rupees is required'
             });
         }
 
@@ -106,7 +176,14 @@ async function createOrder(req, res) {
             });
         }
 
-        const receiptId = receipt || `rcpt_${flatNo}_${Date.now().toString().slice(-8)}`;
+        const receiptId = receipt || (
+            effectiveOrderType === 'CURRENT'
+                ? `receipt_curr_${flatNo}_${Date.now()}`
+                : (effectiveOrderType === 'PREVIOUS_DUES'
+                    ? `receipt_past_${flatNo}_${Date.now()}`
+                    : `rcpt_${flatNo}_${Date.now().toString().slice(-8)}`)
+        );
+        const coveredBillIds = coveredBills.map(b => (b._id ? b._id.toString() : b.id || '')).filter(Boolean);
 
         const orderOptions = {
             amount: amountInPaise,
@@ -116,8 +193,12 @@ async function createOrder(req, res) {
                 ...notes,
                 flatId: flatNo,
                 residentId: user?._id?.toString() || residentId || '',
-                billId: bill?._id?.toString() || '',
-                month: month || '',
+                billId: bill?._id?.toString() || (coveredBillIds[0] || ''),
+                billIds: coveredBillIds.join(','),
+                coveredBillIds: coveredBillIds.join(','),
+                paymentType: effectiveOrderType,
+                orderType: effectiveOrderType,
+                month: month || bill?.month || '',
                 year: year || new Date().getFullYear().toString()
             }
         };
@@ -155,7 +236,9 @@ async function createOrder(req, res) {
             key_id: getKeyId() || process.env.RAZORPAY_KEY_ID,
             keyId: getKeyId() || process.env.RAZORPAY_KEY_ID,
             receipt: order.receipt,
-            billId: bill?._id?.toString() || "",
+            billId: bill?._id?.toString() || (coveredBillIds[0] || ""),
+            coveredBillIds: coveredBillIds,
+            orderType: effectiveOrderType,
             flatNumber: flatNo,
             resident: {
                 name: residentName,
@@ -191,6 +274,9 @@ async function verifyPayment(req, res) {
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature,
+            paymentType: inputPaymentType,
+            orderType: inputOrderType,
+            type: inputType,
             flatId,
             flat_number,
             roomId,
@@ -198,6 +284,7 @@ async function verifyPayment(req, res) {
             paymentRecordId,
             billId,
             bill_id,
+            coveredBillIds: inputCoveredBillIds,
             month
         } = req.body || {};
 
@@ -236,6 +323,8 @@ async function verifyPayment(req, res) {
         }
 
         // 2. Signature match confirmed!
+        const settings = await getSystemSettings();
+
         let payment = null;
         if (paymentRecordId) {
             payment = await Payment.findById(paymentRecordId);
@@ -247,25 +336,71 @@ async function verifyPayment(req, res) {
         const targetFlat = flatId || flat_number || roomId || room_id || payment?.flat_number;
         const targetBillId = billId || bill_id || payment?.bill_id;
 
-        // Save official Payment record strictly as 'PAID'
-        const billRec = targetBillId ? await Bill.findById(targetBillId) : null;
-        
-        // Map stored and displayed currency value properly back to Rupees (amountInPaise / 100)
+        // Resolve paymentType (CURRENT vs PREVIOUS_DUES)
+        let effectivePaymentType = (inputPaymentType || inputOrderType || inputType || '').toUpperCase();
+
+        // Resolve all bill IDs that are covered by this order
+        let resolvedBillIds = [];
+        if (Array.isArray(inputCoveredBillIds)) {
+            resolvedBillIds = inputCoveredBillIds.filter(Boolean).map(id => id.toString());
+        } else if (typeof inputCoveredBillIds === 'string' && inputCoveredBillIds.trim()) {
+            resolvedBillIds = inputCoveredBillIds.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        // If not in request body, attempt fetching notes from Razorpay order
+        if (resolvedBillIds.length === 0 || !effectivePaymentType) {
+            try {
+                const rzpOrder = await razorpayInstance.orders.fetch(effectiveOrderId);
+                if (rzpOrder && rzpOrder.notes) {
+                    if (!effectivePaymentType) {
+                        effectivePaymentType = (rzpOrder.notes.paymentType || rzpOrder.notes.orderType || '').toUpperCase();
+                    }
+                    if (resolvedBillIds.length === 0) {
+                        const notesBills = rzpOrder.notes.billIds || rzpOrder.notes.coveredBillIds;
+                        if (notesBills) {
+                            resolvedBillIds = notesBills.split(',').map(s => s.trim()).filter(Boolean);
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // If PREVIOUS_DUES and resolvedBillIds is still empty, resolve all past unpaid bills
+        if (effectivePaymentType === 'PREVIOUS_DUES' && targetFlat && resolvedBillIds.length === 0) {
+            const allBills = await Bill.find({
+                flat_number: targetFlat,
+                is_archived: { $ne: true },
+                is_draft: { $ne: true }
+            }).sort({ created_at: 1 });
+            const { previousUnpaidBills } = categorizeFlatBills(allBills, settings);
+            resolvedBillIds = previousUnpaidBills.map(b => b._id.toString());
+        }
+
+        // Fallback to single bill if provided
+        if (resolvedBillIds.length === 0 && targetBillId) {
+            resolvedBillIds = [targetBillId.toString()];
+        }
+
+        // If still empty and targetFlat is known, fallback to active unpaid bill
+        if (resolvedBillIds.length === 0 && targetFlat) {
+            const fallbackUnpaid = await Bill.findOne({
+                flat_number: targetFlat,
+                status: { $regex: /^unpaid$/i },
+                is_archived: { $ne: true }
+            }).sort({ created_at: -1 });
+            if (fallbackUnpaid) {
+                resolvedBillIds = [fallbackUnpaid._id.toString()];
+            }
+        }
+
+        // Determine paid amount in Rupees
         let paidAmountInRupees = 0;
-        if (billRec && Number(billRec.amount) > 0) {
-            paidAmountInRupees = Number(billRec.amount);
-        } else if (req.body.billAmountInRupees !== undefined && req.body.billAmountInRupees !== null) {
+        if (req.body.billAmountInRupees !== undefined && req.body.billAmountInRupees !== null) {
             paidAmountInRupees = Number(req.body.billAmountInRupees);
         } else if (req.body.amountInRupees !== undefined && req.body.amountInRupees !== null) {
             paidAmountInRupees = Number(req.body.amountInRupees);
         } else if (req.body.amountInPaise !== undefined && req.body.amountInPaise !== null) {
             paidAmountInRupees = Number(req.body.amountInPaise) / 100;
-        } else if (payment && payment.amount) {
-            const rawAmt = Number(payment.amount);
-            paidAmountInRupees = (rawAmt >= 100000 && rawAmt % 100 === 0) ? (rawAmt / 100) : rawAmt;
-        } else if (req.body.amount !== undefined && req.body.amount !== null && req.body.amount !== '') {
-            const rawAmt = Number(req.body.amount);
-            paidAmountInRupees = (rawAmt >= 100000 && rawAmt % 100 === 0) ? (rawAmt / 100) : rawAmt;
         }
 
         if (!paidAmountInRupees || paidAmountInRupees <= 0) {
@@ -277,12 +412,55 @@ async function verifyPayment(req, res) {
             } catch (e) {}
         }
 
-        if (!paidAmountInRupees || paidAmountInRupees <= 0) {
-            paidAmountInRupees = 2700;
+        // Reconcile and update ALL covered bills
+        const reconciledBills = [];
+        let totalCalculatedBilled = 0;
+
+        for (const bId of resolvedBillIds) {
+            const b = await Bill.findById(bId);
+            if (!b) continue;
+
+            const feeInfo = calculateBillLateFee(b, settings);
+            const lateFeeApplied = feeInfo.lateFee || 0;
+            const singleBillTotal = Number(b.amount) + lateFeeApplied;
+            totalCalculatedBilled += singleBillTotal;
+
+            b.status = 'Paid';
+            b.paymentId = effectivePaymentId;
+            b.orderId = effectiveOrderId;
+            b.paid_at = new Date();
+            b.paidAt = new Date();
+            if (lateFeeApplied > 0) {
+                b.late_fee = lateFeeApplied;
+            }
+            await b.save();
+            reconciledBills.push(b);
+
+            // Record a Payment entry for each settled bill (so individual receipts exist)
+            const bMonth = b.month || b.billing_month || (b.due_date ? new Date(b.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
+            await Payment.create({
+                bill_id: b._id,
+                flat_number: b.flat_number || targetFlat,
+                amount: singleBillTotal,
+                month: bMonth,
+                year: b.year || new Date().getFullYear(),
+                transfer_mode: 'Razorpay',
+                razorpay_order_id: effectiveOrderId,
+                razorpay_payment_id: effectivePaymentId,
+                razorpay_signature: effectiveSignature,
+                status: 'PAID',
+                verified_at: new Date(),
+                created_at: new Date()
+            }).catch(e => console.error('Error creating bill payment entry:', e));
         }
 
-        const paidMonth = billRec?.month || billRec?.billing_month || (month ? month : new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
+        if (!paidAmountInRupees || paidAmountInRupees <= 0) {
+            paidAmountInRupees = totalCalculatedBilled > 0 ? totalCalculatedBilled : 2700;
+        }
 
+        const paidMonth = reconciledBills[0]?.month || reconciledBills[0]?.billing_month || (month ? month : new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }));
+
+        // Update root payment record if exists
         if (payment) {
             payment.status = 'PAID';
             payment.amount = paidAmountInRupees;
@@ -291,65 +469,23 @@ async function verifyPayment(req, res) {
             payment.razorpay_payment_id = effectivePaymentId;
             payment.razorpay_signature = effectiveSignature;
             payment.verified_at = new Date();
-            await payment.save();
-        } else if (targetFlat) {
-            payment = new Payment({
-                flat_number: targetFlat,
-                bill_id: targetBillId,
-                amount: paidAmountInRupees,
-                month: paidMonth,
-                year: new Date().getFullYear(),
-                transfer_mode: 'Razorpay',
-                razorpay_order_id: effectiveOrderId,
-                razorpay_payment_id: effectivePaymentId,
-                razorpay_signature: effectiveSignature,
-                status: 'PAID',
-                verified_at: new Date(),
-                created_at: new Date()
-            });
+            if (reconciledBills[0]) payment.bill_id = reconciledBills[0]._id;
             await payment.save();
         }
 
-        // Update flat's Bill status to 'Paid' and save paymentId, orderId, paidAt
-        const billSetData = {
-            status: 'Paid',
-            paymentId: effectivePaymentId,
-            orderId: effectiveOrderId,
-            paid_at: new Date(),
-            paidAt: new Date()
-        };
-        if (payment && payment.month) {
-            billSetData.month = payment.month;
-            billSetData.billing_month = payment.month;
-        }
-
-        let updatedBill = null;
-        if (targetBillId) {
-            updatedBill = await Bill.findByIdAndUpdate(
-                targetBillId,
-                { $set: billSetData },
-                { new: true }
-            );
-        }
-        if (!updatedBill && targetFlat) {
-            updatedBill = await Bill.findOneAndUpdate(
-                { flat_number: targetFlat, is_archived: { $ne: true } },
-                { $set: billSetData },
-                { sort: { created_at: -1 }, new: true }
-            );
-        }
-
-        // Link bill_id on payment record if not yet set
-        if (payment && updatedBill && !payment.bill_id) {
-            payment.bill_id = updatedBill._id;
-            await payment.save().catch(() => {});
-        }
-
-        // Update User / Room rent status to 'paid' in flat_owners collection
+        // Check if any other unpaid bills remain for this flat
         if (targetFlat) {
+            const remainingUnpaidCount = await Bill.countDocuments({
+                flat_number: targetFlat,
+                status: { $regex: /^unpaid$/i },
+                is_archived: { $ne: true },
+                is_draft: { $ne: true }
+            });
+
+            const newResidentPaymentStatus = remainingUnpaidCount === 0 ? 'paid' : 'unpaid';
             await User.findOneAndUpdate(
                 { flat_number: targetFlat },
-                { $set: { paymentStatus: 'paid' } }
+                { $set: { paymentStatus: newResidentPaymentStatus } }
             );
         }
 
@@ -358,13 +494,14 @@ async function verifyPayment(req, res) {
             const user = await User.findOne({ flat_number: targetFlat });
             const email = user?.email || user?.resident?.email;
             if (email) {
+                const monthsSummary = reconciledBills.map(b => b.month || 'Current').join(', ') || paidMonth;
                 const subject = `Rent Payment Receipt: Room ${targetFlat} - Maple Apartments`;
-                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nPayment ID: ${effectivePaymentId}\nOrder ID: ${effectiveOrderId}\nAmount: ₹${payment?.amount || paidAmountInRupees}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
+                const body = `Hello Room ${targetFlat},\n\nYour rent/maintenance payment has been successfully processed and verified via Razorpay.\n\nBilling Period(s): ${monthsSummary}\nPayment ID: ${effectivePaymentId}\nOrder ID: ${effectiveOrderId}\nAmount: ₹${paidAmountInRupees}\nStatus: PAID\nDate: ${new Date().toLocaleDateString('en-GB')}\n\nThank you for choosing digital payments!\nMaple Apartments Management`;
                 sendNotificationEmail(email, subject, body).catch(e => console.error('Receipt email dispatch failed:', e));
             }
         }
 
-        console.log(`✅ [Razorpay Success] Payment verified (Order: ${effectiveOrderId}, Payment ID: ${effectivePaymentId}, Amount: ₹${paidAmountInRupees})`);
+        console.log(`✅ [Razorpay Success] Payment verified (Order: ${effectiveOrderId}, Payment ID: ${effectivePaymentId}, Amount: ₹${paidAmountInRupees}, Bills Settled: ${reconciledBills.length})`);
 
         return res.json({
             success: true,
@@ -373,9 +510,13 @@ async function verifyPayment(req, res) {
             payment_id: effectivePaymentId,
             orderId: effectiveOrderId,
             paymentId: effectivePaymentId,
-            flatNumber: targetFlat,
             amount: paidAmountInRupees,
             amountInRupees: paidAmountInRupees,
+            coveredBillsCount: reconciledBills.length,
+            coveredBillIds: reconciledBills.map(b => b._id.toString()),
+            flatNumber: targetFlat,
+            month: paidMonth,
+            status: 'PAID',
             paidAt: new Date().toISOString()
         });
 

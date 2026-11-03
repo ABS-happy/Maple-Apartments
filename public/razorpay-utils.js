@@ -305,6 +305,7 @@
             const headers = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
+            const pType = params?.paymentType || params?.type || params?.orderType || 'CURRENT';
             const orderRes = await fetch('/api/rent/create-order', {
                 method: 'POST',
                 headers: headers,
@@ -312,6 +313,10 @@
                     flatId: flatId || '',
                     roomId: flatId || '',
                     billId: billId || '',
+                    paymentType: pType,
+                    type: pType,
+                    orderType: pType,
+                    coveredBillIds: params?.coveredBillIds,
                     amount: amount || undefined,
                     billAmountInRupees: amount || undefined,
                     month: month || '',
@@ -379,6 +384,9 @@
                                 roomId: orderData.flatNumber || flatId,
                                 paymentRecordId: orderData.paymentRecordId,
                                 billId: billId || orderData.billId,
+                                paymentType: pType,
+                                orderType: pType,
+                                coveredBillIds: orderData.coveredBillIds || params.coveredBillIds,
                                 amountInPaise: orderData.amount,
                                 amountInRupees: orderData.amountInRupees || (orderData.amount / 100),
                                 amount: orderData.amountInRupees || (orderData.amount / 100)

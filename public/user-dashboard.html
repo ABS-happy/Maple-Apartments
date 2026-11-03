@@ -102,6 +102,61 @@
                 </div>
             </div>
 
+            <!-- Active Billing Cycle Notification Banner -->
+            <div id="newCycleBanner" class="panel" style="display: none; background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 20px; margin-bottom: 2rem; box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.12); padding: 1.25rem 1.75rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 46px; height: 46px; border-radius: 14px; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                            <i class="fa-solid fa-bell"></i>
+                        </div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                <span style="background: #2563eb; color: white; font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Active Cycle</span>
+                                <h4 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #1e3a8a;">
+                                    New rent bill for <span id="newCycleMonthYear" style="color: #2563eb;">Current Month</span> has been generated.
+                                </h4>
+                            </div>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #1e40af; font-weight: 500;">
+                                Total Payable: <strong id="newCycleTotalPayable" style="color: #1d4ed8; font-weight: 800;">₹0</strong> &bull; Due Date: <span id="newCycleDueDate" style="font-weight: 700;">—</span>
+                            </p>
+                        </div>
+                    </div>
+                    <button id="payNewCycleBtn" onclick="window.payCurrentMonthRent()" class="btn-primary" style="padding: 10px 22px; border-radius: 10px; border: none; background: #ea580c; color: white; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); transition: all 0.15s;">
+                        <i class="fa-solid fa-credit-card"></i> Pay Current Month (<span id="btnPayNewCycleAmount">₹0</span>)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dedicated Previous Outstanding Dues (Arrears) Card -->
+            <div id="previousDuesCard" class="panel" style="display: none; background: #fff7ed; border: 2px solid #fdba74; border-radius: 20px; margin-bottom: 2rem; box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.12); padding: 1.5rem 1.75rem;">
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                        <div style="width: 48px; height: 48px; border-radius: 14px; background: #ea580c; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                                <span style="background: #ef4444; color: white; font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Outstanding Arrears</span>
+                                <h3 style="font-size: 1.25rem; font-weight: 800; color: #9a3412; margin: 0;">You have outstanding dues from previous months: <span id="prevDuesAmountText" style="color: #c2410c; font-weight: 900;">₹0</span></h3>
+                            </div>
+                            <p style="font-size: 0.85rem; color: #7c2d12; margin: 0.35rem 0 0 0; font-weight: 500;">
+                                Unpaid past cycles are incurring late payment fees. You can clear all previous arrears together using the button below.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; width: 100%; justify-content: flex-end; padding-top: 0.5rem; border-top: 1px solid #fed7aa;">
+                        <button onclick="window.toggleArrearsBreakdownModal()" class="btn-sm" style="padding: 9px 18px; border-radius: 10px; border: 1px solid #fdba74; background: white; color: #c2410c; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.15s;">
+                            <i class="fa-solid fa-list-check"></i> Itemized Breakdown
+                        </button>
+                        <button onclick="window.payPreviousDuesOnly()" id="payPreviousDuesBtn" class="btn-primary" style="padding: 10px 20px; border-radius: 10px; border: none; background: #ea580c; color: white; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); transition: all 0.15s;">
+                            <i class="fa-solid fa-clock-rotate-left"></i> Pay Total Previous Dues (<span id="btnPayPrevAmount">₹0</span>)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Unified Dues Table -->
             <div class="panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
@@ -109,8 +164,9 @@
                         <h2 class="panel-title">My Pending Bills & Dues</h2>
                         <span style="font-size: 0.8rem; color: #6b7280;">Secure monthly rent payment via Razorpay Payment Gateway</span>
                     </div>
-                    <button id="quickPayRentBtn" onclick="window.payFirstUnpaidBill()" class="btn-primary" style="display: none; align-items: center; gap: 0.5rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 0.55rem 1.15rem; font-size: 0.875rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.28); border: none; color: white; font-weight: 700; cursor: pointer;">
-                        <i class="fa-solid fa-credit-card"></i> Pay Outstanding Rent
+                    <!-- Button 2: Pay Total Previous Dues in Header -->
+                    <button id="payPastDuesHeaderBtn" onclick="window.payPreviousDuesOnly()" class="btn-primary" style="display: none; align-items: center; gap: 0.5rem; background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%); padding: 0.6rem 1.25rem; font-size: 0.875rem; border-radius: 10px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.32); border: none; color: white; font-weight: 800; cursor: pointer; transition: all 0.15s;" title="Pay all previous unpaid months and late fees together">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Pay Total Previous Dues (<span id="btnHeaderPastDuesAmount">₹0</span>)
                     </button>
                 </div>
                 <table class="data-table">
@@ -285,6 +341,58 @@
         </div>
     </div>
 
+    <!-- Arrears Itemized Breakdown Modal -->
+    <div id="arrearsBreakdownModal" style="display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1rem;">
+        <div style="background: white; border-radius: 24px; max-width: 680px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); overflow: hidden; animation: rzpFadeIn 0.2s ease-out;">
+            <div style="background: #ea580c; color: white; padding: 1.25rem 1.75rem; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-file-invoice-dollar text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0;">Past Unpaid Dues Breakdown</h3>
+                        <p style="font-size: 0.75rem; color: #ffedd5; margin: 2px 0 0 0;">Itemized list of previous unpaid billing cycles & late fee charges</p>
+                    </div>
+                </div>
+                <button onclick="window.toggleArrearsBreakdownModal()" style="background: transparent; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;" title="Close">&times;</button>
+            </div>
+            
+            <div style="padding: 1.5rem 1.75rem;">
+                <div style="max-height: 320px; overflow-y: auto; border: 1px solid #f1f5f9; border-radius: 14px;">
+                    <table class="data-table" style="width: 100%; margin: 0; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: #f8fafc;">
+                                <th>Billing Cycle</th>
+                                <th>Base Dues</th>
+                                <th>Late Fee</th>
+                                <th>Total Payable</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="arrearsBreakdownBody">
+                            <tr><td colspan="5" style="text-align:center; padding: 1.5rem; color: #94a3b8;">Loading past dues...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 1.25rem; padding: 1rem 1.25rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 14px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #9a3412; letter-spacing: 0.5px;">Total Past Outstanding</div>
+                        <div style="font-size: 0.8rem; color: #7c2d12;">Includes base charges & late payment penalties</div>
+                    </div>
+                    <div id="modalTotalPastDue" style="font-size: 1.5rem; font-weight: 900; color: #ea580c;">₹0</div>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.75rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button onclick="window.toggleArrearsBreakdownModal()" style="padding: 9px 18px; border: 1px solid #cbd5e1; background: white; border-radius: 10px; font-weight: 700; color: #64748b; cursor: pointer;">Close</button>
+                <button onclick="window.toggleArrearsBreakdownModal(); window.payPreviousDuesOnly();" style="padding: 9px 20px; border: none; background: #ea580c; color: white; border-radius: 10px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);">
+                    <i class="fa-solid fa-credit-card"></i> Pay Past Dues Now
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         window.openPaymentModal = function(billId, amount, type) {
             document.getElementById('modalBillId').value = billId;
@@ -365,18 +473,148 @@
                 // Load archived bills history
                 loadArchivedBills(user.flat_number);
 
-                // Fetch bills for this specific user
+                // Global variables for arrears & dues
+                window._totalPreviousDue = 0;
+                window._grandTotal = 0;
+                window._currentUnpaidBills = [];
+
+                window.toggleArrearsBreakdownModal = function() {
+                    const modal = document.getElementById('arrearsBreakdownModal');
+                    if (!modal) return;
+                    if (modal.style.display === 'flex') {
+                        modal.style.display = 'none';
+                    } else {
+                        modal.style.display = 'flex';
+                    }
+                };
+
+                window.payCurrentMonthRent = function() {
+                    const curBill = window._currentDuesData?.currentBill;
+                    if (!curBill) {
+                        window.showToast('No active current month bill found!', 'info');
+                        return;
+                    }
+                    if ((curBill.status || '').toLowerCase() === 'paid') {
+                        window.showToast('Current month rent is already paid!', 'info');
+                        return;
+                    }
+                    const totalAmount = Number(curBill.totalPayable !== undefined ? curBill.totalPayable : curBill.amount);
+                    const month = curBill.month || curBill.billing_month || 'Current Month';
+                    window.triggerRazorpayRent(curBill._id, totalAmount, month, 'CURRENT', [curBill._id]);
+                };
+
+                window.payPreviousDuesOnly = function() {
+                    if (window._totalPreviousDue <= 0) {
+                        window.showToast('No outstanding previous dues to pay!', 'info');
+                        return;
+                    }
+                    const pastBills = window._currentDuesData?.previousUnpaidBills || [];
+                    const coveredIds = pastBills.map(b => b._id || b.id).filter(Boolean);
+                    window.triggerRazorpayRent(null, window._totalPreviousDue, 'Total Previous Dues (Arrears)', 'PREVIOUS_DUES', coveredIds);
+                };
+
+                window.payFirstUnpaidBill = function() {
+                    window.payCurrentMonthRent();
+                };
+
+                // Fetch dues & bills for this specific user
                 function loadUserBills(flatNumber, isAuto = false) {
                     const token = sessionStorage.getItem('maple_token');
-                    fetch(`/api/bills/${flatNumber}`, {
+                    fetch(`/api/resident/dues?flat_number=${flatNumber}`, {
                         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                     })
                     .then(res => res.json())
-                    .then(bills => {
+                    .then(duesData => {
                         const tbody = document.getElementById('userBillsTable');
                         if (!isAuto) tbody.innerHTML = '';
-                        
-                        let totalDue = 0;
+
+                        const bills = duesData.allBills || [];
+                        window._allUserBills = bills;
+                        window._currentDuesData = duesData;
+
+                        const totalPreviousDue = Number(duesData.totalPreviousDue) || 0;
+                        const grandTotal = Number(duesData.grandTotal) || 0;
+                        window._totalPreviousDue = totalPreviousDue;
+                        window._grandTotal = grandTotal;
+
+                        // 1. Previous Outstanding Dues (Arrears) Card & Header Button
+                        const prevDuesCard = document.getElementById('previousDuesCard');
+                        const prevDuesText = document.getElementById('prevDuesAmountText');
+                        const btnPayPrev = document.getElementById('btnPayPrevAmount');
+                        const headerPastBtn = document.getElementById('payPastDuesHeaderBtn');
+                        const headerPastAmount = document.getElementById('btnHeaderPastDuesAmount');
+                        const modalPastDue = document.getElementById('modalTotalPastDue');
+                        const breakdownBody = document.getElementById('arrearsBreakdownBody');
+
+                        if (totalPreviousDue > 0) {
+                            if (prevDuesCard) prevDuesCard.style.display = 'block';
+                            if (prevDuesText) prevDuesText.textContent = `₹${totalPreviousDue}`;
+                            if (btnPayPrev) btnPayPrev.textContent = `₹${totalPreviousDue}`;
+                            if (headerPastBtn) headerPastBtn.style.display = 'inline-flex';
+                            if (headerPastAmount) headerPastAmount.textContent = `₹${totalPreviousDue}`;
+                            if (modalPastDue) modalPastDue.textContent = `₹${totalPreviousDue}`;
+
+                            // Render itemized past dues table in modal
+                            if (breakdownBody) {
+                                breakdownBody.innerHTML = '';
+                                const pastBills = duesData.previousUnpaidBills || [];
+                                pastBills.forEach(pb => {
+                                    const pbMonth = pb.month || pb.billing_month || (pb.due_date ? new Date(pb.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Past Cycle');
+                                    const pbDue = pb.due_date ? new Date(pb.due_date).toLocaleDateString('en-GB') : '—';
+                                    const pbLate = pb.lateFee || pb.late_fee || 0;
+                                    const pbTotal = pb.totalPayable || (Number(pb.amount) + pbLate);
+
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td><strong>${pbMonth}</strong></td>
+                                        <td>₹${pb.baseAmount || pb.amount}</td>
+                                        <td style="color: #ef4444; font-weight: 700;">+₹${pbLate}</td>
+                                        <td style="color: #ea580c; font-weight: 900; font-size: 0.95rem;">₹${pbTotal}</td>
+                                        <td style="color: #64748b;">${pbDue}</td>
+                                    `;
+                                    breakdownBody.appendChild(row);
+                                });
+                            }
+                        } else {
+                            if (prevDuesCard) prevDuesCard.style.display = 'none';
+                            if (headerPastBtn) headerPastBtn.style.display = 'none';
+                        }
+
+                        // 2. Active New Cycle Notification Banner & Toast
+                        const curBill = duesData.currentBill;
+                        const newCycleBanner = document.getElementById('newCycleBanner');
+                        if (curBill && (curBill.status || '').toLowerCase() === 'unpaid') {
+                            const curMonth = curBill.month || curBill.billing_month || 'Current Cycle';
+                            const curTotal = Number(curBill.totalPayable !== undefined ? curBill.totalPayable : curBill.amount) || 0;
+                            const curDue = curBill.due_date ? new Date(curBill.due_date).toLocaleDateString('en-GB') : 'End of Month';
+
+                            if (newCycleBanner) {
+                                newCycleBanner.style.display = 'block';
+                                const mEl = document.getElementById('newCycleMonthYear');
+                                if (mEl) mEl.textContent = curMonth;
+                                const totEl = document.getElementById('newCycleTotalPayable');
+                                if (totEl) totEl.textContent = `₹${curTotal}`;
+                                const dEl = document.getElementById('newCycleDueDate');
+                                if (dEl) dEl.textContent = curDue;
+                                const btnAm = document.getElementById('btnPayNewCycleAmount');
+                                if (btnAm) btnAm.textContent = `₹${curTotal}`;
+                            }
+
+                            // In-app toast notification once per session
+                            const toastKey = `notified_cycle_${curBill._id || curMonth}`;
+                            if (!sessionStorage.getItem(toastKey)) {
+                                sessionStorage.setItem(toastKey, '1');
+                                setTimeout(() => {
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast(`New rent bill for ${curMonth} has been generated.`, 'info');
+                                    }
+                                }, 700);
+                            }
+                        } else {
+                            if (newCycleBanner) newCycleBanner.style.display = 'none';
+                        }
+
+                        // 2. Bills Table Population
                         let latestDueDate = null;
                         let anyUnpaid = false;
 
@@ -389,23 +627,24 @@
                                 statStatusEl.style.color = '#10b981';
                             }
                         } else {
-                            window._allUserBills = bills || [];
                             tbody.innerHTML = '';
                             bills.forEach(bill => {
                                 const isPaid = (bill.status || '').toLowerCase() === 'paid';
                                 const isUnpaid = !isPaid;
-                                if (isUnpaid) {
-                                    totalDue += Number(bill.amount) || 0;
-                                    anyUnpaid = true;
-                                }
+                                if (isUnpaid) anyUnpaid = true;
 
-                                if (!latestDueDate && bill.due_date) {
+                                if (!latestDueDate && bill.due_date && isUnpaid) {
                                     latestDueDate = new Date(bill.due_date);
                                 }
                                 
                                 const billingMonth = bill.month || bill.billing_month || (bill.due_date ? new Date(bill.due_date).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Current Month');
                                 const dueFmt = bill.due_date ? new Date(bill.due_date).toLocaleDateString('en-GB') : 'End of Month';
+                                const isOverdue = Boolean(bill.isOverdue) && isUnpaid;
+                                const lateFee = Number(bill.lateFee || bill.late_fee || 0);
+                                const totalPayable = Number(bill.totalPayable !== undefined ? bill.totalPayable : bill.amount);
 
+                                const isCurrentCycle = curBill && (curBill._id === bill._id || curBill.month === billingMonth);
+                                const actionBtnLabel = isCurrentCycle ? `Pay Current Month (₹${totalPayable})` : `Pay Now (₹${totalPayable})`;
 
                                 const tr = document.createElement('tr');
                                 tr.innerHTML = `
@@ -414,13 +653,21 @@
                                     <td data-label="Festival">₹${bill.festival || 0}</td>
                                     <td data-label="Parking">₹${bill.parking || 0}</td>
                                     <td data-label="Others">₹${bill.others || 0}</td>
-                                    <td data-label="Total Amount"><strong style="color: #f97316; font-size: 1.05rem;">₹${bill.amount}</strong></td>
+                                    <td data-label="Total Amount">
+                                        <strong style="color: #ea580c; font-size: 1.05rem;">₹${totalPayable}</strong>
+                                        ${isOverdue && lateFee > 0 ? `<div style="font-size: 0.72rem; color: #ef4444; font-weight: 700;">Includes ₹${lateFee} Late Fee</div>` : ''}
+                                    </td>
                                     <td data-label="Due Date"><strong>${dueFmt}</strong></td>
-                                    <td data-label="Status / Action" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; white-space: nowrap;">
+                                    <td data-label="Status / Action" style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; white-space: nowrap; flex-wrap: wrap;">
                                         <span class="badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}" style="margin-right: 4px;">${isPaid ? 'Paid' : 'Unpaid'}</span>
+                                        ${isOverdue ? `
+                                            <span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                                <i class="fa-solid fa-triangle-exclamation"></i> Overdue (+₹${lateFee} Late Fee applied)
+                                            </span>
+                                        ` : ''}
                                         ${isUnpaid ? `
-                                            <button class="btn-sm btn-primary" style="padding: 7px 16px; border-radius: 8px; border: none; background: #f97316; color: white; cursor: pointer; font-weight: 700; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Pay securely with Razorpay">
-                                                <i class="fa-solid fa-credit-card"></i> Pay Now
+                                            <button class="btn-sm btn-primary" style="padding: 7px 16px; border-radius: 8px; border: none; background: #ea580c; color: white; cursor: pointer; font-weight: 800; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${totalPayable}, '${billingMonth}', 'CURRENT', ['${bill._id}'])" title="Pay with Razorpay">
+                                                <i class="fa-solid fa-credit-card"></i> ${actionBtnLabel}
                                             </button>
                                         ` : `
                                             <button class="btn-sm" style="padding: 7px 14px; border-radius: 8px; border: 1px solid #10b981; background: #ecfdf5; color: #047857; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(16,185,129,0.2); transition: all 0.15s;" onclick="window.downloadBillReceipt('${bill._id}', '${billingMonth}')" title="Download or print official rent receipt">
@@ -441,7 +688,7 @@
                             const iconEl = document.getElementById('accountStatusIcon');
                             if (statStatusEl) {
                                 if (anyUnpaid) {
-                                    statStatusEl.textContent = 'Payment Due';
+                                    statStatusEl.textContent = totalPreviousDue > 0 ? 'Arrears + Due' : 'Payment Due';
                                     statStatusEl.style.color = '#ef4444';
                                     if (iconEl) iconEl.className = 'stat-icon red';
                                 } else {
@@ -452,16 +699,16 @@
                             }
                         }
                         
-                        document.getElementById('userTotalDue').textContent = `₹${totalDue}`;
-                            _currentUnpaidBills = (bills || []).filter(b => (b.status || '').toLowerCase() === 'unpaid');
-                            const quickBtn = document.getElementById('quickPayRentBtn');
-                            if (quickBtn) {
-                                quickBtn.style.display = _currentUnpaidBills.length > 0 ? 'inline-flex' : 'none';
-                            }
+                        document.getElementById('userTotalDue').textContent = `₹${grandTotal}`;
+                        window._currentUnpaidBills = (bills || []).filter(b => (b.status || '').toLowerCase() === 'unpaid');
+                        const quickBtn = document.getElementById('quickPayRentBtn');
+                        if (quickBtn) {
+                            quickBtn.style.display = window._currentUnpaidBills.length > 0 ? 'inline-flex' : 'none';
+                        }
                     })
                     .catch(err => {
-                        console.error('Error fetching user bills:', err);
-                        if (!isAuto) document.getElementById('userBillsTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: red;">Failed to load bills.</td></tr>';
+                        console.error('Error fetching resident dues:', err);
+                        if (!isAuto) document.getElementById('userBillsTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: red;">Failed to load dues.</td></tr>';
                     });
                 }
 
@@ -1094,7 +1341,7 @@
             }
         };
 
-        window.triggerRazorpayRent = function(billId, amount, billingMonth) {
+        window.triggerRazorpayRent = function(billId, amount, billingMonth, orderType = 'CURRENT', coveredBillIds = null) {
             const userStr = sessionStorage.getItem('maple_user');
             const user = userStr ? JSON.parse(userStr) : {};
 
@@ -1106,12 +1353,16 @@
             }
 
             window.MapleRazorpay.payRent({
-                flatId: user.flat_number,
+                flatId: user.flat_number || window.currentFlatNum,
                 billId: billId,
                 amount: amount,
                 month: billingMonth,
+                paymentType: orderType,
+                type: orderType,
+                orderType: orderType,
+                coveredBillIds: coveredBillIds || undefined,
                 resident: {
-                    name: user.owner_name || `Resident ${user.flat_number}`,
+                    name: user.owner_name || `Resident ${user.flat_number || window.currentFlatNum}`,
                     email: user.email,
                     phone: user.mobile_number
                 }
