@@ -107,7 +107,7 @@
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
                     <div>
                         <h2 class="panel-title">My Pending Bills & Dues</h2>
-                        <span style="font-size: 0.8rem; color: #6b7280;">Secure monthly rent payment via Razorpay test gateway</span>
+                        <span style="font-size: 0.8rem; color: #6b7280;">Secure monthly rent payment via Razorpay Payment Gateway</span>
                     </div>
                     <button id="quickPayRentBtn" onclick="window.payFirstUnpaidBill()" class="btn-primary" style="display: none; align-items: center; gap: 0.5rem; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 0.55rem 1.15rem; font-size: 0.875rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.28); border: none; color: white; font-weight: 700; cursor: pointer;">
                         <i class="fa-solid fa-credit-card"></i> Pay Outstanding Rent
@@ -419,7 +419,7 @@
                                     <td data-label="Status / Action" style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; white-space: nowrap;">
                                         <span class="badge ${isPaid ? 'badge-paid' : 'badge-unpaid'}" style="margin-right: 4px;">${isPaid ? 'Paid' : 'Unpaid'}</span>
                                         ${isUnpaid ? `
-                                            <button class="btn-sm btn-primary" style="padding: 7px 16px; border-radius: 8px; border: none; background: #f97316; color: white; cursor: pointer; font-weight: 700; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Pay securely with Razorpay Test Mode">
+                                            <button class="btn-sm btn-primary" style="padding: 7px 16px; border-radius: 8px; border: none; background: #f97316; color: white; cursor: pointer; font-weight: 700; min-width: max-content; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35); transition: transform 0.15s, background 0.2s;" onclick="window.triggerRazorpayRent('${bill._id}', ${bill.amount}, '${billingMonth}')" title="Pay securely with Razorpay">
                                                 <i class="fa-solid fa-credit-card"></i> Pay Now
                                             </button>
                                         ` : `
@@ -1021,7 +1021,7 @@
 
                 <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.65rem 0.85rem; display: flex; align-items: center; gap: 0.5rem; color: #166534; font-size: 0.8rem;">
                     <i class="fa-solid fa-circle-check"></i>
-                    <span>Status: <strong>PAID</strong> (Verified via Razorpay Test Gateway)</span>
+                    <span>Status: <strong>PAID</strong> (Verified via Razorpay Gateway)</span>
                 </div>
             </div>
 
