@@ -343,7 +343,86 @@ body {
     }
 
     .header {
-        padding: 0 1rem;
+        height: auto;
+        min-height: 52px;
+        padding: 0.625rem 0.75rem !important;
+        gap: 0.375rem !important;
+        flex-wrap: nowrap !important;
+        overflow: hidden;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        min-width: 0;
+        flex-shrink: 1;
+    }
+
+    #menuToggle {
+        padding: 0.375rem !important;
+        flex-shrink: 0 !important;
+        font-size: 1.15rem !important;
+    }
+
+    .page-title {
+        font-size: 0.875rem !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .user-profile {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem !important;
+        flex-shrink: 0 !important;
+    }
+
+    #installPwaBtn, .install-btn {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.75rem !important;
+        border-radius: 0.5rem !important;
+        gap: 0.25rem !important;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .user-info-text {
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+        max-width: 105px;
+        min-width: 0;
+    }
+
+    .user-info-primary {
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        color: #1f2937 !important;
+        line-height: 1.25 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .user-info-secondary {
+        font-size: 0.625rem !important;
+        color: #6b7280 !important;
+        line-height: 1.25 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .avatar {
+        width: 1.75rem !important;
+        height: 1.75rem !important;
+        flex-shrink: 0 !important;
+        border-radius: 9999px !important;
+        font-size: 0.75rem !important;
     }
 
     .content {
@@ -419,4 +498,24 @@ body {
         border-bottom: none;
     }
     .data-table td[data-label="Total Amount"] strong { font-size: 1.25rem; }
+}
+
+@media (max-width: 400px) {
+    .header {
+        padding: 0.5rem 0.375rem !important;
+        gap: 0.25rem !important;
+    }
+    .header-left {
+        gap: 0.25rem !important;
+    }
+    .page-title {
+        font-size: 0.8rem !important;
+        max-width: 105px;
+    }
+    .user-info-text {
+        max-width: 75px;
+    }
+    .user-info-secondary {
+        display: none !important;
+    }
 }

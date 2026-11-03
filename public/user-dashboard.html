@@ -23,6 +23,22 @@
     <!-- Razorpay Checkout SDK & Maple Integration Utility -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script src="razorpay-utils.js"></script>
+    <!-- Tailwind CSS CDN (with preflight disabled so existing custom dashboard styles are preserved) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            corePlugins: {
+                preflight: false,
+            },
+            theme: {
+                extend: {
+                    screens: {
+                        'xs': '400px',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         @media (max-width: 768px) {
             .mobile-only-flex { display: flex !important; }
@@ -54,19 +70,27 @@
 
     <!-- Main Content -->
     <main class="main-wrapper">
-        <header class="header">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <button id="menuToggle" style="display: none; background: none; border: none; font-size: 1.25rem; color: var(--primary-color); cursor: pointer;" class="mobile-only-flex">
+        <header class="header flex items-center justify-between px-3 py-2.5 md:px-6 md:py-4 w-full border-b border-gray-100 bg-white flex-nowrap gap-1.5 sm:gap-3 md:gap-4 sticky top-0 z-50">
+            <!-- Left Section (Hamburger & Title) -->
+            <div class="header-left flex items-center gap-1.5 sm:gap-2 md:gap-3 min-w-0 flex-shrink">
+                <button id="menuToggle" class="mobile-only-flex flex-shrink-0 p-1.5 sm:p-2 text-orange-500 hover:text-orange-600 bg-transparent border-0 cursor-pointer text-lg sm:text-xl" style="display: none;" aria-label="Toggle Navigation">
                     <i class="fa-solid fa-bars-staggered"></i>
                 </button>
-                <h1 class="page-title">Owner Dashboard</h1>
+                <h1 class="page-title text-sm sm:text-base md:text-lg font-bold text-gray-900 truncate whitespace-nowrap m-0 leading-tight">Owner Dashboard</h1>
             </div>
-            <div class="user-profile">
-                <button id="installPwaBtn" style="display: none; background: #f97316; color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; align-items: center; gap: 0.5rem; font-size: 0.875rem;" class="install-btn">
-                    <i class="fa-solid fa-download"></i> Download App
+
+            <!-- Right Section (Download App, Flat Profile & Avatar Badge) -->
+            <div class="user-profile flex items-center gap-1.5 sm:gap-2.5 md:gap-4 flex-shrink-0">
+                <button id="installPwaBtn" style="display: none;" class="install-btn bg-orange-500 hover:bg-orange-600 text-white font-semibold cursor-pointer border-0 shadow-xs px-2 py-1 md:px-3.5 md:py-1.5 text-xs md:text-sm rounded-lg flex items-center gap-1 md:gap-1.5 flex-shrink-0 transition-all" title="Download Maple App">
+                    <i class="fa-solid fa-download text-xs md:text-sm"></i>
+                    <span class="hidden sm:inline">Download App</span>
+                    <span class="sm:hidden text-xs">App</span>
                 </button>
-                <span style="font-weight: 500; color: #4b5563;" id="welcomeName">Loading...</span>
-                <div class="avatar" id="avatarInitial">U</div>
+                <div id="welcomeName" class="user-info-text flex flex-col text-right leading-tight max-w-[105px] xs:max-w-[130px] sm:max-w-none min-w-0">
+                    <span id="welcomeFlat" class="user-info-primary text-xs sm:text-sm font-semibold text-gray-800 leading-tight truncate">Flat ---</span>
+                    <span id="welcomeOwner" class="user-info-secondary text-[10px] sm:text-xs text-gray-500 leading-tight truncate hidden xs:block sm:block">(---)</span>
+                </div>
+                <div class="avatar w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 flex-shrink-0 rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm bg-orange-100 text-orange-600 border border-orange-200" id="avatarInitial">U</div>
             </div>
         </header>
 
@@ -460,7 +484,15 @@
             if (userStr) {
                 const user = JSON.parse(userStr);
                 const ownerName = user.owner_name || user.name || (user.resident && user.resident.name) || `Resident ${user.flat_number}`;
-                document.getElementById('welcomeName').textContent = `Flat ${user.flat_number} (${ownerName})`;
+                const welcomeFlat = document.getElementById('welcomeFlat');
+                const welcomeOwner = document.getElementById('welcomeOwner');
+                if (welcomeFlat && welcomeOwner) {
+                    welcomeFlat.textContent = `Flat ${user.flat_number}`;
+                    welcomeOwner.textContent = `(${ownerName})`;
+                } else {
+                    const welcomeEl = document.getElementById('welcomeName');
+                    if (welcomeEl) welcomeEl.textContent = `Flat ${user.flat_number} (${ownerName})`;
+                }
                 document.getElementById('avatarInitial').textContent = (ownerName.charAt(0) || 'U').toUpperCase();
                 
                 window.currentFlatNum = user.flat_number;
